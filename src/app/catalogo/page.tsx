@@ -1,0 +1,165 @@
+"use client";
+import React, { useState, useEffect, Suspense, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import ProductDetailModal from "@/components/ProductDetailModal";
+import QuoteCartDrawer from "@/components/QuoteCartDrawer";
+import { ArrowRight } from "lucide-react";
+
+function CatalogContent() {
+  const searchParams = useSearchParams();
+  const initialFilter = searchParams.get("filtro") || "Todos";
+  
+  const [productos, setProductos] = useState<any[]>([]);
+  const [activeFilter, setActiveFilter] = useState(initialFilter);
+  const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // 1. ESCUCHA DE PRODUCTOS EN TIEMPO REAL
+  useEffect(() => {
+    const q = query(collection(db, "productos"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProductos(docs);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. GENERACIÓN DINÁMICA DE CATEGORÍAS (Sin duplicados y normalizadas)
+  const categoriesList = useMemo(() => {
+    const rawCategories = productos.map(p => p.categoria?.trim()).filter(Boolean);
+    // Usamos un Set para valores únicos
+    const uniqueCategories = Array.from(new Set(rawCategories));
+    return ["Todos", ...uniqueCategories.sort()];
+  }, [productos]);
+
+  // 3. HELPER DE COMPARACIÓN FLEXIBLE (Singular/Plural, Case Insensitive, Trim)
+  const matchesCategory = (prodCat: string, filterCat: string) => {
+    if (filterCat === "Todos") return true;
+    if (!prodCat) return false;
+    
+    const cleanProd = prodCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
+    const cleanFilter = filterCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
+    
+    // Compara raíces (camiseta === camiseta) o strings exactos normalizados
+    return cleanProd === cleanFilter || prodCat.trim().toLowerCase() === filterCat.trim().toLowerCase();
+  };
+
+  // 4. FILTRADO DE PRODUCTOS
+  const filteredProducts = useMemo(() => {
+    return productos.filter(p => matchesCategory(p.categoria, activeFilter));
+  }, [productos, activeFilter]);
+
+  // Sincronizar filtro cuando cambia la URL
+  useEffect(() => {
+    if (initialFilter) setActiveFilter(initialFilter);
+  }, [initialFilter]);
+
+  return (
+    <main className="min-h-screen bg-white">
+      <Navbar />
+      
+      {/* Header Estilizado */}
+      <header className="bg-gray-50 py-16 px-4 border-b border-gray-100">
+        <div className="max-w-7xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl font-black text-secondary mb-4 tracking-tight uppercase">Catálogo SubliMod</h1>
+          <p className="text-secondary/60 text-lg max-w-2xl mx-auto italic font-medium">Explora productos listos para personalizar con la mejor calidad de Jinotega.</p>
+        </div>
+      </header>
+
+      {/* Barra de Filtros Dinámicos */}
+      <div className="sticky top-20 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-6">
+        <div className="max-w-7xl mx-auto px-4 flex gap-3 overflow-x-auto no-scrollbar">
+          {categoriesList.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveFilter(cat)}
+              className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+                matchesCategory(cat, activeFilter)
+                ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                : "bg-transparent border-gray-100 text-gray-400 hover:border-primary/30"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid de Productos */}
+      <section className="max-w-7xl mx-auto px-4 py-16">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Analizando Inventario...</p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
+            <p className="text-gray-400 font-black uppercase text-xs tracking-widest">No se encontraron productos en "{activeFilter}"</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+            {filteredProducts.map((prod) => (
+              <div 
+                key={prod.id} 
+                onClick={() => setSelectedProduct(prod)}
+                className="group bg-white border border-gray-100 rounded-[2.5rem] overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer"
+              >
+                <div className="relative aspect-square overflow-hidden bg-gray-50">
+                  <img src={prod.imagenUrl} alt={prod.nombre} className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110" />
+                  <div className="absolute top-4 left-4">
+                    <span className="bg-accent text-secondary text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter shadow-sm border border-black/5">
+                      {prod.categoria}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-8">
+                  <h3 className="text-secondary font-black text-lg mb-2 line-clamp-1 group-hover:text-primary transition-colors uppercase tracking-tight">{prod.nombre}</h3>
+                  <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-50">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Desde</span>
+                      <span className="text-primary font-black text-xl tracking-tighter">C$ {prod.escalasPrecios?.[0]?.price || 0}</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-2xl group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                      <ArrowRight size={20} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* RENDERIZADO DEL MODAL */}
+      {selectedProduct && (
+        <ProductDetailModal 
+          product={selectedProduct} 
+          onClose={() => setSelectedProduct(null)} 
+          whatsappNumber="88888888" 
+        />
+      )}
+
+      {/* CARRITO Y DRAWER FLOTANTE DE COTIZACIÓN */}
+      <QuoteCartDrawer whatsappNumber="88888888" />
+
+      <Footer />
+    </main>
+  );
+}
+
+export default function CatalogoPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen flex items-center justify-center bg-white">
+        <p className="font-black text-xs uppercase tracking-[0.3em] text-gray-300 animate-pulse">Cargando SubliMod...</p>
+      </div>
+    }>
+      <CatalogContent />
+    </Suspense>
+  );
+}
