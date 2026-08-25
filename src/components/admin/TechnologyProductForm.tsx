@@ -81,6 +81,18 @@ const emptyProduct: TechnologyLaptop = {
   destacado: false,
 };
 
+const normalizeProduct = (product?: Partial<TechnologyLaptop> | null): TechnologyLaptop => ({
+  ...emptyProduct,
+  ...(product ?? {}),
+  incluye: Array.isArray(product?.incluye) ? product.incluye : emptyProduct.incluye,
+  imagenes: Array.isArray(product?.imagenes) ? product.imagenes : emptyProduct.imagenes,
+  color: product?.color ?? "",
+  touchscreen: product?.touchscreen ?? "",
+  precio: Number(product?.precio ?? emptyProduct.precio),
+  precioAnterior: Number(product?.precioAnterior ?? emptyProduct.precioAnterior),
+  garantia: product?.garantia ?? emptyProduct.garantia,
+});
+
 type Props = {
   productToEdit?: TechnologyLaptop | null;
   onClose: () => void;
@@ -88,13 +100,13 @@ type Props = {
 };
 
 export default function TechnologyProductForm({ productToEdit, onClose, onSaved }: Props) {
-  const [form, setForm] = useState<TechnologyLaptop>(productToEdit ?? emptyProduct);
+  const [form, setForm] = useState<TechnologyLaptop>(() => normalizeProduct(productToEdit));
   const [newImages, setNewImages] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setForm(productToEdit ?? emptyProduct);
+    setForm(normalizeProduct(productToEdit));
     setNewImages([]);
     setError("");
   }, [productToEdit]);
@@ -236,25 +248,25 @@ export default function TechnologyProductForm({ productToEdit, onClose, onSaved 
             {([
               ["procesador", "Procesador"], ["ram", "RAM"], ["almacenamiento", "Almacenamiento"], ["tipoAlmacenamiento", "Tipo de almacenamiento"], ["grafica", "Gráficos"], ["pantalla", "Pantalla"], ["resolucion", "Resolución"], ["sistemaOperativo", "Sistema operativo"], ["bateria", "Batería"], ["cargador", "Cargador"], ["conectividad", "Conectividad"], ["puertos", "Puertos"],
             ] as const).map(([key, label]) => (
-              <label key={key}><span className={labelClass}>{label}</span><input className={inputClass} value={form[key]} onChange={(e) => set(key, e.target.value)} /></label>
+              <label key={key}><span className={labelClass}>{label}</span><input className={inputClass} value={form[key] ?? ""} onChange={(e) => set(key, e.target.value)} /></label>
             ))}
           </div>
-          <label className="mt-5 block"><span className={labelClass}>Pruebas realizadas</span><textarea className={`${inputClass} min-h-24`} value={form.pruebasRealizadas} onChange={(e) => set("pruebasRealizadas", e.target.value)} /></label>
+          <label className="mt-5 block"><span className={labelClass}>Pruebas realizadas</span><textarea className={`${inputClass} min-h-24`} value={form.pruebasRealizadas ?? ""} onChange={(e) => set("pruebasRealizadas", e.target.value)} /></label>
         </section>
 
         <section className="mt-8 rounded-3xl border border-white/5 bg-white/[0.02] p-5">
           <h3 className="mb-5 text-xs font-black uppercase tracking-[0.2em] text-primary">Garantía y contenido</h3>
           <div className="grid gap-5 md:grid-cols-2">
-            <label className="flex items-center gap-3 rounded-2xl border border-white/5 bg-black/20 p-4"><input type="checkbox" checked={form.garantia} onChange={(e) => set("garantia", e.target.checked)} /><span className="text-xs font-bold text-white">Incluye garantía</span></label>
-            <label><span className={labelClass}>Detalle de garantía</span><input className={inputClass} value={form.garantiaDetalle} onChange={(e) => set("garantiaDetalle", e.target.value)} /></label>
+            <label className="flex items-center gap-3 rounded-2xl border border-white/5 bg-black/20 p-4"><input type="checkbox" checked={Boolean(form.garantia)} onChange={(e) => set("garantia", e.target.checked)} /><span className="text-xs font-bold text-white">Incluye garantía</span></label>
+            <label><span className={labelClass}>Detalle de garantía</span><input className={inputClass} value={form.garantiaDetalle ?? ""} onChange={(e) => set("garantiaDetalle", e.target.value)} /></label>
           </div>
           <label className="mt-5 block"><span className={labelClass}>Incluye (separado por comas)</span><input className={inputClass} value={form.incluye.join(", ")} onChange={(e) => set("incluye", e.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
         </section>
 
         <section className="mt-8 rounded-3xl border border-white/5 bg-white/[0.02] p-5">
           <h3 className="mb-5 text-xs font-black uppercase tracking-[0.2em] text-primary">Descripción comercial</h3>
-          <label className="block"><span className={labelClass}>Descripción corta</span><input className={inputClass} value={form.descripcionCorta} onChange={(e) => set("descripcionCorta", e.target.value)} /></label>
-          <label className="mt-5 block"><span className={labelClass}>Descripción completa</span><textarea className={`${inputClass} min-h-32`} value={form.descripcion} onChange={(e) => set("descripcion", e.target.value)} /></label>
+          <label className="block"><span className={labelClass}>Descripción corta</span><input className={inputClass} value={form.descripcionCorta ?? ""} onChange={(e) => set("descripcionCorta", e.target.value)} /></label>
+          <label className="mt-5 block"><span className={labelClass}>Descripción completa</span><textarea className={`${inputClass} min-h-32`} value={form.descripcion ?? ""} onChange={(e) => set("descripcion", e.target.value)} /></label>
         </section>
 
         <section className="mt-8 rounded-3xl border border-white/5 bg-white/[0.02] p-5">
