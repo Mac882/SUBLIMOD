@@ -10,7 +10,7 @@ import {
 import { 
   LayoutDashboard, Package, Layers, Settings, Plus, Menu,
   Edit, Trash2, TrendingUp, ShoppingBag, Truck, Eye,
-  MessageSquare, Save, X, CheckCircle, Tag, Hash, Info, Search, Filter, Check, XCircle, AlertTriangle, LogOut
+  MessageSquare, Save, X, CheckCircle, Tag, Hash, Info, Search, Filter, Check, XCircle, AlertTriangle, LogOut, Laptop
 } from "lucide-react";
 import ProductForm from "@/components/admin/ProductForm";
 import CategoryManager from "@/components/admin/CategoryManager";
@@ -202,9 +202,10 @@ export default function AdminDashboard() {
         { id: "productos", icon: <Package size={20} />, label: "Productos" },
         { id: "categorias", icon: <Layers size={20} />, label: "Categorías" },
         { id: "atributos", icon: <Tag size={20} />, label: "Atributos / Unidades" },
-        { id: "configuracion", icon: <Settings size={20} />, label: "Configuración" }
+        { id: "configuracion", icon: <Settings size={20} />, label: "Configuración" },
+        { id: "tecnologia", icon: <Laptop size={20} />, label: "Tecnología · Laptops" }
       ].map((item) => (
-        <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "hover:bg-white/5 text-gray-500"}`}>
+        <button key={item.id} onClick={() => { if (item.id === "tecnologia") { router.push("/admin/tecnologia"); } else { setActiveTab(item.id); } setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "hover:bg-white/5 text-gray-500"}`}>
           {item.icon} <span className="font-bold text-sm tracking-tight">{item.label}</span>
         </button>
       ))}
@@ -532,7 +533,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {showProductModal && <ProductForm onClose={() => {setShowProductModal(false); setSelectedProductToEdit(null);}} productToEdit={selectedProductToEdit} availableCategories={categorias.map(c => c.nombre)} globalAttributes={atributosGlobales}/>}
+          {showProductModal && <ProductForm onClose={() => {setShowProductModal(false); setSelectedProductToEdit(null);}} productToEdit={selectedProductToEdit} availableCategories={categorias.map(c => c.nombre)} globalAttributes={atributosGlobales}/>} 
 
           {showAttrModal && (
             <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
