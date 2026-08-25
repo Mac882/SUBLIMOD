@@ -19,6 +19,8 @@ export type TechnologyLaptop = {
   disponibilidad: "Disponible" | "Reservada" | "Vendida";
   estado: "Nuevo" | "Como nuevo" | "Usado - Excelente" | "Usado - Muy bueno" | "Reacondicionado";
   descripcionEstado: string;
+  color: string;
+  touchscreen: "Touch" | "No touch" | "";
   procesador: string;
   ram: string;
   almacenamiento: string;
@@ -54,6 +56,8 @@ const emptyProduct: TechnologyLaptop = {
   disponibilidad: "Disponible",
   estado: "Usado - Excelente",
   descripcionEstado: "",
+  color: "",
+  touchscreen: "",
   procesador: "",
   ram: "",
   almacenamiento: "",
@@ -138,6 +142,7 @@ export default function TechnologyProductForm({ productToEdit, onClose, onSaved 
         marca: form.marca.trim(),
         modelo: form.modelo.trim(),
         sku: form.sku.trim(),
+        color: form.color.trim(),
         precio: Number(form.precio),
         precioAnterior: Number(form.precioAnterior || 0),
         imagenUrl: form.imagenUrl || allImages[0] || "",
@@ -166,6 +171,7 @@ export default function TechnologyProductForm({ productToEdit, onClose, onSaved 
 
   const inputClass = "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-primary";
   const labelClass = "mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-500";
+  const optionCard = (selected: boolean) => `rounded-2xl border px-4 py-3 transition ${selected ? "border-primary bg-primary/10 text-white" : "border-white/10 bg-black/20 text-gray-400 hover:border-white/20"}`;
 
   return (
     <div className="fixed inset-0 z-[400] overflow-y-auto bg-black/90 p-4 backdrop-blur-md">
@@ -203,9 +209,24 @@ export default function TechnologyProductForm({ productToEdit, onClose, onSaved 
 
         <section className="mt-8 rounded-3xl border border-white/5 bg-white/[0.02] p-5">
           <h3 className="mb-5 text-xs font-black uppercase tracking-[0.2em] text-primary">Estado del equipo</h3>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             <label><span className={labelClass}>Estado</span><select className={inputClass} value={form.estado} onChange={(e) => set("estado", e.target.value as TechnologyLaptop["estado"])}><option>Nuevo</option><option>Como nuevo</option><option>Usado - Excelente</option><option>Usado - Muy bueno</option><option>Reacondicionado</option></select></label>
+            <label><span className={labelClass}>Color</span><input className={inputClass} value={form.color} onChange={(e) => set("color", e.target.value)} placeholder="Ej. Negro" /></label>
             <label><span className={labelClass}>Detalles físicos</span><input className={inputClass} value={form.descripcionEstado} onChange={(e) => set("descripcionEstado", e.target.value)} placeholder="Ej. Leves marcas de uso en la tapa" /></label>
+          </div>
+
+          <div className="mt-5">
+            <span className={labelClass}>Pantalla táctil</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => set("touchscreen", "Touch")} className={optionCard(form.touchscreen === "Touch")}>
+                <span className="block text-sm font-black uppercase tracking-widest">✋ Touch</span>
+                <span className="mt-1 block text-[10px] text-gray-500">Pantalla táctil</span>
+              </button>
+              <button type="button" onClick={() => set("touchscreen", "No touch")} className={optionCard(form.touchscreen === "No touch")}>
+                <span className="block text-sm font-black uppercase tracking-widest">○ No touch</span>
+                <span className="mt-1 block text-[10px] text-gray-500">Pantalla no táctil</span>
+              </button>
+            </div>
           </div>
         </section>
 
