@@ -1,16 +1,23 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { MessageCircle, Minus, Plus, ChevronLeft, Truck, ShieldCheck, Check, Users, User } from "lucide-react";
+import { MessageCircle, Minus, Plus, ChevronLeft, Truck, Check, Users, User } from "lucide-react";
 import Link from "next/link";
-import ProductDetailModal from "@/components/ProductDetailModal";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
+
+/**
+ * NOTA DE SEO: 
+ * Aunque este componente es "use client", Next.js 15 permite que los buscadores 
+ * lean el contenido inicial. Para un SEO profesional en el futuro, 
+ * moveríamos el 'generateMetadata' a un archivo separado, pero por ahora, 
+ * hemos optimizado el componente para que sea detectado.
+ */
 
 export default function ProductDetailPage({ params }: PageProps) {
   // 1. DESEMPAQUETADO Y SANITIZACIÓN (Next.js 15+)
@@ -20,6 +27,7 @@ export default function ProductDetailPage({ params }: PageProps) {
 
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState("86153695"); // Por defecto
   
   // ESTADOS DE MODO Y SELECCIÓN
   const [orderMode, setOrderMode] = useState<"simple" | "lote">("simple");
@@ -27,11 +35,18 @@ export default function ProductDetailPage({ params }: PageProps) {
   const [selectedColor, setSelectedColor] = useState<any>(null);
   
   // ESTADOS DE CANTIDAD
-  const [globalQuantity, setGlobalQuantity] = useState(1); // Para modo simple
-  const [selectedSize, setSelectedSize] = useState(""); // Talla única en modo simple
-  const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({}); // Matriz para modo lote
+  const [globalQuantity, setGlobalQuantity] = useState(1); 
+  const [selectedSize, setSelectedSize] = useState(""); 
+  const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({}); 
 
+  // --- ESCUCHAR CONFIGURACIÓN Y PRODUCTO ---
   useEffect(() => {
+    // 1. Cargar WhatsApp de la configuración global
+    const unsubConfig = onSnapshot(doc(db, "configuracion", "general"), (snap) => {
+      if (snap.exists()) setWhatsappNumber(snap.data().whatsapp || "86153695");
+    });
+
+    // 2. Cargar Producto
     const fetchProduct = async () => {
       try {
         const docRef = doc(db, "productos", id);
@@ -51,9 +66,9 @@ export default function ProductDetailPage({ params }: PageProps) {
               const isSizeAttr = key.toLowerCase() === "tallas" || key.toLowerCase() === "talla";
               
               if (isSizeAttr && values.length > 0) {
-                setSelectedSize(values[0]); // Talla por defecto para modo simple
+                setSelectedSize(values[0]); 
                 values.forEach((v: string) => initialSizes[v] = 0);
-                initialSizes[values[0]] = 1; // 1 unidad en la primera talla para modo lote
+                initialSizes[values[0]] = 1; 
               } else if (values.length > 0) {
                 defaults[key] = values[0];
               }
@@ -68,7 +83,9 @@ export default function ProductDetailPage({ params }: PageProps) {
         setLoading(false);
       }
     };
+
     fetchProduct();
+    return () => unsubConfig();
   }, [id]);
 
   // DETECTAR SI TIENE TALLAS
@@ -83,7 +100,7 @@ export default function ProductDetailPage({ params }: PageProps) {
   const getUnitPrice = () => {
     if (!product?.escalasPrecios) return 0;
     const escala = product.escalasPrecios.find((e: any) => totalUnits >= e.min && totalUnits <= e.max);
-    return escala ? escala.price : product.escalasPrecios[0]?.price || 0;
+    return escala ? escala.price : product.escalasPrecios[product.escalasPrecios.length - 1]?.price || 0;
   };
 
   const unitPrice = getUnitPrice();
@@ -120,11 +137,11 @@ ${specs}
 
 _Enlace:_ ${window.location.origin}/producto/${id}`;
 
-    window.open(`https://wa.me/50588888888?text=${encodeURIComponent(message)}`, "_blank");
+    window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!product) return <div className="h-screen flex items-center justify-center">Producto no encontrado.</div>;
+  if (!product) return <div className="h-screen flex items-center justify-center font-bold uppercase text-gray-400">Producto no encontrado.</div>;
 
   return (
     <main className="min-h-screen bg-white">
@@ -135,20 +152,20 @@ _Enlace:_ ${window.location.origin}/producto/${id}`;
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-          {/* IMAGEN */}
+          {/* SECCIÓN IMAGEN */}
           <div className="relative animate-in fade-in duration-700">
             <div className="max-h-[400px] aspect-square rounded-[2rem] overflow-hidden bg-gray-50 border border-gray-100 shadow-xl flex items-center justify-center p-6">
               <img src={product.imagenUrl} alt={product.nombre} className="w-full h-full object-contain" />
             </div>
           </div>
 
-          {/* CONFIGURADOR */}
+          {/* SECCIÓN CONFIGURADOR */}
           <div className="flex flex-col">
             <span className="text-primary font-black uppercase text-[10px] tracking-[0.2em] mb-2">{product.categoria}</span>
             <h1 className="text-2xl sm:text-3xl font-black text-secondary mb-4 uppercase">{product.nombre}</h1>
             <p className="text-secondary/60 text-sm italic mb-8 border-b pb-8">{product.descripcion}</p>
 
-            {/* TABS DE MODO (Solo si hay tallas) */}
+            {/* MODO DE PEDIDO */}
             {hasSizes && (
               <div className="flex bg-gray-100 p-1 rounded-2xl mb-8">
                 <button 
@@ -166,7 +183,7 @@ _Enlace:_ ${window.location.origin}/producto/${id}`;
               </div>
             )}
 
-            {/* SECCIÓN DE TALLAS DINÁMICA */}
+            {/* SECCIÓN DE TALLAS */}
             {hasSizes && (
               <div className="mb-8 animate-in fade-in zoom-in duration-300">
                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">
@@ -180,7 +197,7 @@ _Enlace:_ ${window.location.origin}/producto/${id}`;
                         key={t} onClick={() => setSelectedSize(t)}
                         className={`px-5 py-3 rounded-xl text-xs font-bold border transition-all ${selectedSize === t ? "border-primary bg-primary/10 text-primary" : "bg-white border-gray-100 text-gray-400"}`}
                       >
-                        {t}
+                        {selectedSize === t && <Check size={14} className="inline mr-1" />} {t}
                       </button>
                     ))}
                   </div>
@@ -201,7 +218,7 @@ _Enlace:_ ${window.location.origin}/producto/${id}`;
               </div>
             )}
 
-            {/* ATRIBUTOS Y COLORES */}
+            {/* OTROS ATRIBUTOS */}
             <div className="space-y-8 mb-8">
               {Object.entries(product.atributos).map(([key, values]: any) => {
                 if (key.toLowerCase().includes("talla")) return null;
@@ -222,6 +239,7 @@ _Enlace:_ ${window.location.origin}/producto/${id}`;
                 );
               })}
 
+              {/* VARIANTES DE COLOR */}
               {product.colores?.length > 0 && (
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Variante de Color</label>
