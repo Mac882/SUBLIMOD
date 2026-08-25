@@ -5,8 +5,9 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { collection, addDoc, updateDoc, doc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { 
   X, Plus, Trash2, Check, Hash, Type, Info, Layers, 
-  Upload, Image as ImageIcon, Tag, PlusCircle, AlertCircle, Edit 
+  Upload, Image as ImageIcon, Tag, PlusCircle, AlertCircle, Edit, Loader2 
 } from "lucide-react";
+import { compressImage } from "@/lib/imageUtils"; // Importación necesaria
 
 // --- INTERFACES ---
 interface ColorVariant { name: string; hex: string; }
@@ -41,6 +42,7 @@ const DEFAULT_OPTIONS: any = {
 const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttributes }: ProductFormProps) => {
   // --- ESTADOS DEL PRODUCTO ---
   const [isUploading, setIsUploading] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false); // Nuevo estado para feedback
   const [category, setCategory] = useState("");
   const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
@@ -86,14 +88,28 @@ const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttrib
     }
   }, [productToEdit]);
 
-  // --- MANEJO DE MÚLTIPLES IMÁGENES ---
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- MANEJO DE MÚLTIPLES IMÁGENES CON COMPRESIÓN ---
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files).map(file => ({
-        url: URL.createObjectURL(file),
-        file
-      }));
-      setImages(prev => [...prev, ...newFiles]);
+      setIsCompressing(true); // Iniciamos aviso de optimización
+      const filesArray = Array.from(e.target.files);
+      
+      try {
+        const optimizedFiles = await Promise.all(
+          filesArray.map(async (file) => {
+            const compressed = await compressImage(file); // Compresión automática
+            return {
+              url: URL.createObjectURL(compressed),
+              file: compressed as File
+            };
+          })
+        );
+        setImages(prev => [...prev, ...optimizedFiles]);
+      } catch (error) {
+        console.error("Error comprimiendo imágenes", error);
+      } finally {
+        setIsCompressing(false); // Quitamos aviso
+      }
     }
   };
 
@@ -221,7 +237,7 @@ const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttrib
     <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-[#1A1A1A] w-full max-w-5xl my-auto rounded-[2.5rem] border border-white/10 relative shadow-2xl animate-in zoom-in duration-300">
         
-        {/* SUB-MODALES IN SITU (Sin cambios) */}
+        {/* SUB-MODALES IN SITU */}
         {showInSituCat && (
           <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[60] flex items-center justify-center rounded-[2.5rem] p-6 animate-in fade-in duration-300">
             <div className="bg-[#262626] w-full max-w-sm p-10 rounded-[2rem] border border-white/10 shadow-2xl space-y-6 text-center">
@@ -286,10 +302,13 @@ const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttrib
             </div>
           </section>
 
-          {/* SECCIÓN 2: MULTIMEDIA (GALERÍA MULTIPLE) */}
+          {/* SECCIÓN 2: MULTIMEDIA CON OPTIMIZACIÓN */}
           <section className="space-y-4">
             <div className="flex justify-between items-center">
-              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2"><ImageIcon size={14}/> Galería de Imágenes</label>
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                <ImageIcon size={14}/> Galería de Imágenes 
+                {isCompressing && <span className="text-primary animate-pulse ml-2 flex items-center gap-1 font-black uppercase text-[9px]"><Loader2 size={12} className="animate-spin" /> Optimizando...</span>}
+              </label>
               <label className="cursor-pointer bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl text-[10px] font-black text-gray-400 border border-white/10 uppercase tracking-widest transition-all">
                 + Añadir Fotos
                 <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange} />
@@ -358,7 +377,6 @@ const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttrib
                 {!category && <div className="flex items-center gap-3 text-gray-600 bg-white/5 p-6 rounded-2xl border border-white/5"><AlertCircle size={20}/> <p className="text-[10px] font-bold uppercase tracking-widest">Elige una categoría para ver especificaciones.</p></div>}
               </div>
 
-              {/* VARIANTES DE COLOR / DISEÑO */}
               <div className="space-y-6">
                 <div className="flex justify-between items-center border-b border-white/5 pb-4">
                   <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Colores / Variantes</label>
@@ -407,8 +425,8 @@ const ProductForm = ({ onClose, productToEdit, availableCategories, globalAttrib
 
           {/* BOTÓN DE ACCIÓN FINAL */}
           <button 
-            onClick={handleSubmit} disabled={isUploading} 
-            className="w-full bg-primary hover:bg-primary-dark text-white py-7 rounded-[2rem] font-black text-xl tracking-[0.2em] uppercase active:scale-[0.98] transition-all flex items-center justify-center gap-4 shadow-2xl shadow-primary/20"
+            onClick={handleSubmit} disabled={isUploading || isCompressing} 
+            className="w-full bg-primary hover:bg-primary-dark text-white py-7 rounded-[2rem] font-black text-xl tracking-[0.2em] uppercase active:scale-[0.98] transition-all flex items-center justify-center gap-4 shadow-2xl shadow-primary/20 disabled:opacity-50"
           >
             {isUploading ? <><div className="w-5 h-5 border-4 border-white/20 border-t-white rounded-full animate-spin"></div> Sincronizando...</> : (productToEdit ? "Actualizar Producto" : "Publicar Producto")}
           </button>
