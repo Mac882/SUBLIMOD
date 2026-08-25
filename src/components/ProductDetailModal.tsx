@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, MessageCircle, ShoppingCart, Check, Minus, Plus, Truck, ShieldCheck, Info } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
+import { useCartStore } from "@/store/useCartStore";
 
 interface ProductDetailModalProps {
   product: any;
@@ -10,10 +11,9 @@ interface ProductDetailModalProps {
 }
 
 const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
-  // Estado para el número de WhatsApp dinámico desde Firebase
   const [whatsappNumber, setWhatsappNumber] = useState("86153695");
+  const addItem = useCartStore((state) => state.addItem);
 
-  // --- ESCUCHAR CONFIGURACIÓN DE WHATSAPP EN TIEMPO REAL ---
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, "configuracion", "general"), (snap) => {
       if (snap.exists()) {
@@ -26,23 +26,18 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     return () => unsubConfig();
   }, []);
 
-  // --- ESTADOS DE SELECCIÓN ---
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
   const [addedToQuote, setAddedToQuote] = useState(false);
-  
-  // ESTADO DE GALERÍA
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  // --- PREPARAR GALERÍA ---
   const imagesList = useMemo(() => {
     return product.imagenes?.length > 0 
       ? product.imagenes 
       : (product.imagenUrl ? [product.imagenUrl] : []);
   }, [product]);
 
-  // --- INICIALIZACIÓN DE OPCIONES POR DEFECTO ---
   useEffect(() => {
     if (product.atributos) {
       const defaults: Record<string, string> = {};
@@ -58,7 +53,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     }
   }, [product]);
 
-  // --- LÓGICA DE CÁLCULO DE PRECIO (ESCALAS) ---
   const unitPrice = useMemo(() => {
     if (!product.escalasPrecios || product.escalasPrecios.length === 0) return 0;
     const escala = product.escalasPrecios.find(
@@ -69,7 +63,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   const totalPrice = unitPrice * quantity;
 
-  // --- GENERADOR DE PEDIDO DIRECTO USANDO EL NÚMERO DE ADMIN ---
   const handleDirectOrder = () => {
     const attrString = Object.entries(selectedAttributes)
       .map(([key, val]) => `• *${key}:* ${val}`)
@@ -92,9 +85,8 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
     window.open(url, "_blank");
   };
 
-  // --- LÓGICA DE CARRITO DE COTIZACIÓN ---
   const handleAddToQuote = () => {
-    const quoteItem = {
+    addItem({
       id: `${product.id}-${Date.now()}`,
       productId: product.id,
       nombre: product.nombre,
@@ -104,12 +96,7 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
       cantidad: quantity,
       precioUnitario: unitPrice,
       total: totalPrice
-    };
-
-    const currentQuote = JSON.parse(localStorage.getItem("sublimod_quote") || "[]");
-    localStorage.setItem("sublimod_quote", JSON.stringify([...currentQuote, quoteItem]));
-    
-    window.dispatchEvent(new Event("cartUpdated"));
+    });
 
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
@@ -119,7 +106,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-[#1A1A1A] w-full max-w-5xl my-auto rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden relative animate-in zoom-in duration-300">
         
-        {/* BOTÓN CERRAR */}
         <button 
           onClick={onClose} 
           className="absolute top-6 right-6 z-50 p-3 bg-black/20 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"
@@ -129,10 +115,8 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
 
         <div className="grid grid-cols-1 lg:grid-cols-2">
           
-          {/* LADO IZQUIERDO: MULTIMEDIA CON GALERÍA ORDENADA */}
           <div className="bg-[#121212] p-8 lg:p-12 flex flex-col items-center justify-center space-y-6">
             
-            {/* Imagen Principal Grande */}
             {imagesList.length > 0 && (
               <div className="relative w-full aspect-square max-w-[380px]">
                 <img 
@@ -143,7 +127,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
               </div>
             )}
             
-            {/* Miniaturas Navegables */}
             {imagesList.length > 1 && (
               <div className="flex gap-3 overflow-x-auto w-full max-w-[380px] no-scrollbar justify-center">
                 {imagesList.map((img: string, idx: number) => (
@@ -158,7 +141,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
               </div>
             )}
 
-            {/* Insignia de Calidad */}
             <div className="bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/10 flex items-center gap-2">
               <ShieldCheck size={18} className="text-primary" />
               <span className="text-[10px] font-bold text-white uppercase tracking-widest">Calidad SubliMod</span>
@@ -166,10 +148,8 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
 
           </div>
 
-          {/* LADO DERECHO: CONFIGURACIÓN */}
           <div className="p-8 lg:p-12 space-y-10 max-h-[90vh] overflow-y-auto no-scrollbar">
             
-            {/* CABECERA */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <span className="bg-primary/20 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">
@@ -184,7 +164,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
               </p>
             </div>
 
-            {/* ATRIBUTOS DINÁMICOS */}
             <div className="space-y-8">
               {product.atributos && Object.entries(product.atributos).map(([key, options]: any) => (
                 <div key={key} className="space-y-4">
@@ -211,7 +190,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
                 </div>
               ))}
 
-              {/* VARIANTES DE COLOR */}
               {product.colores && product.colores.length > 0 && (
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Variante de Diseño</label>
@@ -241,7 +219,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
               )}
             </div>
 
-            {/* CONTROL DE CANTIDAD Y PRECIO */}
             <div className="bg-[#121212] p-8 rounded-[2rem] border border-white/5 space-y-8">
               <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="space-y-3 w-full md:w-auto">
@@ -274,7 +251,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
                 </div>
               </div>
 
-              {/* ACCIONES */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   onClick={handleDirectOrder}
@@ -300,7 +276,6 @@ Quedo a la espera de su respuesta para coordinar el diseño.`;
               </div>
             </div>
 
-            {/* INFO LOGÍSTICA */}
             <div className="flex flex-col md:flex-row gap-6 border-t border-white/5 pt-8">
               <div className="flex items-center gap-3 text-gray-500">
                 <Truck size={18} className="text-primary" />

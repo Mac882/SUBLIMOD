@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductDetailModal from "@/components/ProductDetailModal";
 import QuoteCartDrawer from "@/components/QuoteCartDrawer";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Search, X } from "lucide-react"; // Añadimos Search y X
 
 function CatalogContent() {
   const searchParams = useSearchParams();
@@ -17,6 +17,9 @@ function CatalogContent() {
   const [activeFilter, setActiveFilter] = useState(initialFilter);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // --- ESTADO PARA LA BÚSQUEDA ---
+  const [searchQuery, setSearchQuery] = useState("");
 
   // 1. ESCUCHA DE PRODUCTOS EN TIEMPO REAL
   useEffect(() => {
@@ -32,7 +35,6 @@ function CatalogContent() {
   // 2. GENERACIÓN DINÁMICA DE CATEGORÍAS (Sin duplicados y normalizadas)
   const categoriesList = useMemo(() => {
     const rawCategories = productos.map(p => p.categoria?.trim()).filter(Boolean);
-    // Usamos un Set para valores únicos
     const uniqueCategories = Array.from(new Set(rawCategories));
     return ["Todos", ...uniqueCategories.sort()];
   }, [productos]);
@@ -45,14 +47,17 @@ function CatalogContent() {
     const cleanProd = prodCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
     const cleanFilter = filterCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
     
-    // Compara raíces (camiseta === camiseta) o strings exactos normalizados
     return cleanProd === cleanFilter || prodCat.trim().toLowerCase() === filterCat.trim().toLowerCase();
   };
 
-  // 4. FILTRADO DE PRODUCTOS
+  // 4. FILTRADO DE PRODUCTOS (Categoría + Nombre)
   const filteredProducts = useMemo(() => {
-    return productos.filter(p => matchesCategory(p.categoria, activeFilter));
-  }, [productos, activeFilter]);
+    return productos.filter(p => {
+      const categoryMatch = matchesCategory(p.categoria, activeFilter);
+      const searchMatch = p.nombre.toLowerCase().includes(searchQuery.toLowerCase());
+      return categoryMatch && searchMatch;
+    });
+  }, [productos, activeFilter, searchQuery]);
 
   // Sincronizar filtro cuando cambia la URL
   useEffect(() => {
@@ -67,7 +72,29 @@ function CatalogContent() {
       <header className="bg-gray-50 py-16 px-4 border-b border-gray-100">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-black text-secondary mb-4 tracking-tight uppercase">Catálogo SubliMod</h1>
-          <p className="text-secondary/60 text-lg max-w-2xl mx-auto italic font-medium">Explora productos listos para personalizar con la mejor calidad de Jinotega.</p>
+          <p className="text-secondary/60 text-lg max-w-2xl mx-auto italic font-medium mb-10">Explora productos listos para personalizar con la mejor calidad de Jinotega.</p>
+
+          {/* BARRA DE BÚSQUEDA INTEGRADA */}
+          <div className="max-w-md mx-auto relative group">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors">
+              <Search size={20} />
+            </div>
+            <input 
+              type="text"
+              placeholder="¿Qué producto buscas?"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border-2 border-gray-200 rounded-full py-4 pl-14 pr-12 text-sm font-bold text-secondary outline-none focus:border-primary focus:shadow-xl focus:shadow-primary/5 transition-all"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full text-gray-400 transition-all"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -99,7 +126,19 @@ function CatalogContent() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
-            <p className="text-gray-400 font-black uppercase text-xs tracking-widest">No se encontraron productos en "{activeFilter}"</p>
+            <p className="text-gray-400 font-black uppercase text-xs tracking-widest">
+              {searchQuery 
+                ? `No hay resultados para "${searchQuery}" en ${activeFilter}` 
+                : `No se encontraron productos en "${activeFilter}"`}
+            </p>
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="mt-4 text-primary font-bold text-xs uppercase underline"
+              >
+                Ver todos los productos
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -140,12 +179,11 @@ function CatalogContent() {
         <ProductDetailModal 
           product={selectedProduct} 
           onClose={() => setSelectedProduct(null)} 
-          whatsappNumber="88888888" 
         />
       )}
 
       {/* CARRITO Y DRAWER FLOTANTE DE COTIZACIÓN */}
-      <QuoteCartDrawer whatsappNumber="88888888" />
+      <QuoteCartDrawer />
 
       <Footer />
     </main>

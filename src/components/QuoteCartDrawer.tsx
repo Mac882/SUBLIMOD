@@ -3,19 +3,21 @@ import React, { useState, useEffect } from "react";
 import { ShoppingBag, ShoppingCart, X, Trash2, MessageCircle, Package } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
+import { useCartStore } from "@/store/useCartStore";
 
 const QuoteCartDrawer = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<any[]>([]);
-  const [whatsappNumber, setWhatsappNumber] = useState("86153695"); // Número por defecto de respaldo
+  const [whatsappNumber, setWhatsappNumber] = useState("86153695");
+  
+  // Conexión a Zustand
+  const cartItems = useCartStore((state) => state.items);
+  const removeItem = useCartStore((state) => state.removeItem);
 
-  // --- ESCUCHAR CONFIGURACIÓN DE WHATSAPP DESDE FIRESTORE ---
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, "configuracion", "general"), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.whatsapp) {
-          // Limpiamos espacios o caracteres extra por si acaso
           setWhatsappNumber(data.whatsapp.trim());
         }
       }
@@ -23,49 +25,11 @@ const QuoteCartDrawer = () => {
     return () => unsubConfig();
   }, []);
 
-  // --- LÓGICA DE CARGA DE CARRITO ---
-  const loadCart = () => {
-    const saved = localStorage.getItem("sublimod_quote");
-    if (saved) {
-      try {
-        setCartItems(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error al cargar carrito:", e);
-      }
-    } else {
-      setCartItems([]);
-    }
-  };
-
   useEffect(() => {
-    loadCart();
-
     const handleOpen = () => setIsOpen(true);
-    const handleUpdate = () => loadCart();
-
     window.addEventListener("openSublimodCart", handleOpen);
-    window.addEventListener("cartUpdated", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-
-    return () => {
-      window.removeEventListener("openSublimodCart", handleOpen);
-      window.removeEventListener("cartUpdated", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-    };
+    return () => window.removeEventListener("openSublimodCart", handleOpen);
   }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadCart();
-    }
-  }, [isOpen]);
-
-  const handleRemoveItem = (id: string) => {
-    const updated = cartItems.filter((item) => item.id !== id);
-    setCartItems(updated);
-    localStorage.setItem("sublimod_quote", JSON.stringify(updated));
-    window.dispatchEvent(new Event("cartUpdated")); 
-  };
 
   const totalQuote = cartItems.reduce((acc, item) => acc + (item.total || 0), 0);
 
@@ -90,7 +54,6 @@ ${attrString}
 
   return (
     <>
-      {/* BOTÓN FLOTANTE DE WHATSAPP (CONECTADO A FIRESTORE) */}
       <a
         href={`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent("¡Hola SubliMod! 👋 Tengo una consulta técnica.")}`}
         target="_blank"
@@ -101,7 +64,6 @@ ${attrString}
         <MessageCircle size={32} fill="currentColor" />
       </a>
 
-      {/* DRAWER LATERAL / CARRITO */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex justify-end animate-in fade-in duration-300">
           <div className="bg-[#1A1A1A] w-full max-w-md h-full border-l border-white/10 flex flex-col justify-between p-6 shadow-2xl relative animate-in slide-in-from-right duration-300">
@@ -139,7 +101,7 @@ ${attrString}
                       </div>
                       <p className="text-xs font-black text-accent mt-2">C$ {item.total}</p>
                     </div>
-                    <button onClick={() => handleRemoveItem(item.id)} className="text-gray-600 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                    <button onClick={() => removeItem(item.id)} className="text-gray-600 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
                   </div>
                 ))
               )}

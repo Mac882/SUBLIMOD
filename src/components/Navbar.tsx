@@ -1,34 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Menu, X, ShoppingBag } from "lucide-react";
 import Link from "next/link";
+import { useCartStore } from "@/store/useCartStore";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
-
-  // --- LÓGICA DE SINCRONIZACIÓN DEL CONTADOR ---
-  const updateCount = () => {
-    const saved = localStorage.getItem("sublimod_quote");
-    if (saved) {
-      const items = JSON.parse(saved);
-      setCartCount(items.length);
-    } else {
-      setCartCount(0);
-    }
-  };
-
-  useEffect(() => {
-    updateCount();
-    window.addEventListener("storage", updateCount);
-    window.addEventListener("cartUpdated", updateCount);
-    const interval = setInterval(updateCount, 1000);
-    return () => {
-      window.removeEventListener("storage", updateCount);
-      window.removeEventListener("cartUpdated", updateCount);
-      clearInterval(interval);
-    };
-  }, []);
+  
+  // Conexión a Zustand
+  const cartCount = useCartStore((state) => state.items.length);
 
   const openDrawer = () => {
     window.dispatchEvent(new Event("openSublimodCart"));
@@ -47,7 +27,6 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           
-          {/* LOGO */}
           <Link href="/" className="flex flex-col group">
             <span className="text-2xl font-black text-primary italic leading-none transition-transform group-hover:scale-105">
               SubliMod
@@ -57,7 +36,6 @@ const Navbar = () => {
             </span>
           </Link>
 
-          {/* DESKTOP NAV + CART */}
           <div className="hidden md:flex items-center gap-8">
             <div className="flex space-x-8">
               {navLinks.map((link) => (
@@ -73,7 +51,6 @@ const Navbar = () => {
               ))}
             </div>
 
-            {/* BOTÓN CARRITO DESKTOP */}
             <button
               onClick={openDrawer}
               className="bg-[#1A1A1A] hover:bg-black text-white px-5 py-2.5 rounded-full flex items-center gap-3 transition-all active:scale-95 border border-white/10 group shadow-lg"
@@ -90,7 +67,6 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* MOBILE CONTROLS (CART + MENU) */}
           <div className="md:hidden flex items-center gap-4">
             <button onClick={openDrawer} className="relative p-2 bg-gray-50 rounded-xl">
               <ShoppingBag size={24} className="text-primary" />
@@ -111,7 +87,6 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* MOBILE MENU */}
       {isOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 animate-in slide-in-from-top duration-300 shadow-xl">
           <div className="px-4 pt-4 pb-8 space-y-2">
