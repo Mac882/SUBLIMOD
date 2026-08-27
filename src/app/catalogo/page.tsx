@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, Suspense, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, Suspense, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductDetailModal from "@/components/ProductDetailModal";
 import QuoteCartDrawer from "@/components/QuoteCartDrawer";
-import { ArrowRight, Search, X } from "lucide-react"; // Añadimos Search y X
+import { ArrowRight, Search, X, ChevronDown } from "lucide-react";
 
 function CatalogContent() {
   const searchParams = useSearchParams();
@@ -20,6 +20,11 @@ function CatalogContent() {
 
   // --- ESTADO PARA LA BÚSQUEDA ---
   const [searchQuery, setSearchQuery] = useState("");
+
+  // --- CATEGORÍAS RESPONSIVAS EN MÓVIL ---
+  const mobileCategoryContainerRef = useRef<HTMLDivElement>(null);
+  const mobileCategoryMeasureRef = useRef<HTMLDivElement>(null);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(0);
 
   // 1. ESCUCHA DE PRODUCTOS EN TIEMPO REAL
   useEffect(() => {
@@ -39,18 +44,69 @@ function CatalogContent() {
     return ["Todos", ...uniqueCategories.sort()];
   }, [productos]);
 
-  // 3. HELPER DE COMPARACIÓN FLEXIBLE (Singular/Plural, Case Insensitive, Trim)
+  // 3. CALCULAR CUÁNTAS CATEGORÍAS CABEN REALMENTE EN EL ANCHO MÓVIL
+  //    Se reserva espacio para "Más categorías" cuando todavía quedan opciones.
+  useLayoutEffect(() => {
+    const container = mobileCategoryContainerRef.current;
+    const measure = mobileCategoryMeasureRef.current;
+    if (!container || !measure || categoriesList.length === 0) return;
+
+    const calculateVisibleCategories = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileVisibleCount(categoriesList.length);
+        return;
+      }
+
+      const availableWidth = container.clientWidth;
+      const gap = 12;
+      const moreControlWidth = categoriesList.length > 1 ? 132 : 0;
+      const measuredButtons = Array.from(measure.children) as HTMLElement[];
+
+      let usedWidth = 0;
+      let count = 0;
+
+      for (const button of measuredButtons) {
+        const buttonWidth = button.getBoundingClientRect().width;
+        const nextWidth = usedWidth + (count > 0 ? gap : 0) + buttonWidth;
+        const categoriesRemainingAfterThis = categoriesList.length - (count + 1);
+        const reservedMoreWidth = categoriesRemainingAfterThis > 0 ? gap + moreControlWidth : 0;
+
+        if (nextWidth + reservedMoreWidth <= availableWidth) {
+          usedWidth = nextWidth;
+          count += 1;
+        } else {
+          break;
+        }
+      }
+
+      setMobileVisibleCount(Math.max(1, Math.min(count, categoriesList.length)));
+    };
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(calculateVisibleCategories);
+    });
+
+    observer.observe(container);
+    calculateVisibleCategories();
+
+    return () => observer.disconnect();
+  }, [categoriesList]);
+
+  const visibleMobileCategories = categoriesList.slice(0, mobileVisibleCount);
+  const hiddenMobileCategories = categoriesList.slice(mobileVisibleCount);
+
+  // 4. HELPER DE COMPARACIÓN FLEXIBLE (Singular/Plural, Case Insensitive, Trim)
   const matchesCategory = (prodCat: string, filterCat: string) => {
     if (filterCat === "Todos") return true;
     if (!prodCat) return false;
     
-    const cleanProd = prodCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
-    const cleanFilter = filterCat.trim().toLowerCase().replace(/s$/, ''); // Quita 's' final
+    const cleanProd = prodCat.trim().toLowerCase().replace(/s$/, '');
+    const cleanFilter = filterCat.trim().toLowerCase().replace(/s$/, '');
     
     return cleanProd === cleanFilter || prodCat.trim().toLowerCase() === filterCat.trim().toLowerCase();
   };
 
-  // 4. FILTRADO DE PRODUCTOS (Categoría + Nombre)
+  // 5. FILTRADO DE PRODUCTOS (Categoría + Nombre)
   const filteredProducts = useMemo(() => {
     return productos.filter(p => {
       const categoryMatch = matchesCategory(p.categoria, activeFilter);
@@ -99,21 +155,88 @@ function CatalogContent() {
       </header>
 
       {/* Barra de Filtros Dinámicos */}
-      <div className="sticky top-20 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-6">
-        <div className="max-w-7xl mx-auto px-4 flex gap-3 overflow-x-auto no-scrollbar">
-          {categoriesList.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveFilter(cat)}
-              className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
-                matchesCategory(cat, activeFilter)
-                ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-105" 
-                : "bg-transparent border-gray-100 text-gray-400 hover:border-primary/30"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+      <div className="sticky top-20 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 py-4 md:py-6">
+        <div
+          ref={mobileCategoryContainerRef}
+          className="max-w-7xl mx-auto px-4 relative"
+        >
+          {/* Versión móvil: muestra solo lo que cabe y agrupa el resto en un desplegable nativo. */}
+          <div className="lg:hidden flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+              {visibleMobileCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveFilter(cat)}
+                  className={`shrink-0 px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+                    matchesCategory(cat, activeFilter)
+                      ? "bg-primary border-primary text-white shadow-lg shadow-primary/20"
+                      : "bg-transparent border-gray-100 text-gray-400"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {hiddenMobileCategories.length > 0 && (
+              <div className="relative shrink-0 w-[132px]">
+                <label htmlFor="mobile-category-more" className="sr-only">Más categorías</label>
+                <select
+                  id="mobile-category-more"
+                  value={hiddenMobileCategories.includes(activeFilter) ? activeFilter : ""}
+                  onChange={(e) => {
+                    if (e.target.value) setActiveFilter(e.target.value);
+                  }}
+                  className={`w-full appearance-none rounded-full border-2 px-4 py-3 pr-9 text-[10px] font-black uppercase tracking-widest outline-none transition-all ${
+                    hiddenMobileCategories.includes(activeFilter)
+                      ? "border-primary bg-primary text-white"
+                      : "border-gray-200 bg-gray-50 text-secondary"
+                  }`}
+                >
+                  <option value="">Más categorías</option>
+                  {hiddenMobileCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${hiddenMobileCategories.includes(activeFilter) ? "text-white" : "text-gray-500"}`} />
+              </div>
+            )}
+          </div>
+
+          {/* Medidor invisible para calcular el ancho real de cada categoría. */}
+          <div
+            ref={mobileCategoryMeasureRef}
+            aria-hidden="true"
+            className="absolute left-4 top-0 flex gap-3 w-max pointer-events-none opacity-0"
+          >
+            {categoriesList.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                tabIndex={-1}
+                className="shrink-0 px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap border-2"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Versión escritorio: conserva el comportamiento actual. */}
+          <div className="hidden lg:flex gap-3 overflow-x-auto no-scrollbar">
+            {categoriesList.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveFilter(cat)}
+                className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+                  matchesCategory(cat, activeFilter)
+                    ? "bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                    : "bg-transparent border-gray-100 text-gray-400 hover:border-primary/30"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
