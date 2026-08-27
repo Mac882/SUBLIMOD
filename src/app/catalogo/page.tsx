@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useLayoutEffect, Suspense, useMemo, useRef } from "react";
+import React, { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
@@ -46,7 +46,7 @@ function CatalogContent() {
 
   // 3. CALCULAR CUÁNTAS CATEGORÍAS CABEN REALMENTE EN EL ANCHO MÓVIL
   //    Se reserva espacio para "Más categorías" cuando todavía quedan opciones.
-  useLayoutEffect(() => {
+  useEffect(() => {
     const container = mobileCategoryContainerRef.current;
     const measure = mobileCategoryMeasureRef.current;
     if (!container || !measure || categoriesList.length === 0) return;
