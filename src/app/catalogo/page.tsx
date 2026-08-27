@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, Suspense, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
@@ -11,11 +11,13 @@ import { ArrowRight, Search, X, ChevronLeft, Package, Layers } from "lucide-reac
 
 function CatalogContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialFilter = searchParams.get("filtro") || "";
+  const isCategoriesView = searchParams.get("vista") === "categorias";
 
   const [productos, setProductos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
-  const [activeFilter, setActiveFilter] = useState(initialFilter);
+  const [activeFilter, setActiveFilter] = useState(isCategoriesView ? "" : initialFilter);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +44,12 @@ function CatalogContent() {
       unsubCat();
     };
   }, []);
+
+  useEffect(() => {
+    setActiveFilter(isCategoriesView ? "" : initialFilter);
+    setSearchQuery("");
+    setSelectedProduct(null);
+  }, [initialFilter, isCategoriesView]);
 
   const matchesCategory = (prodCat: string, filterCat: string) => {
     if (!filterCat || filterCat === "Todos") return true;
@@ -71,24 +79,23 @@ function CatalogContent() {
   const openCategory = (categoryName: string) => {
     setActiveFilter(categoryName);
     setSearchQuery("");
+    router.replace(`/catalogo?filtro=${encodeURIComponent(categoryName)}`, { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const showAllProducts = () => {
     setActiveFilter("Todos");
     setSearchQuery("");
+    router.replace("/catalogo?filtro=Todos", { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const backToCategories = () => {
     setActiveFilter("");
     setSearchQuery("");
+    router.replace("/catalogo?vista=categorias", { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  useEffect(() => {
-    if (initialFilter) setActiveFilter(initialFilter);
-  }, [initialFilter]);
 
   return (
     <main className="min-h-screen bg-white text-secondary">
@@ -115,7 +122,7 @@ function CatalogContent() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                if (!showProducts && e.target.value.trim()) setActiveFilter("Todos");
+                if (!showProducts && e.target.value.trim()) showAllProducts();
               }}
               className="w-full bg-white border-2 border-gray-200 rounded-full py-4 pl-14 pr-12 text-sm font-bold text-secondary outline-none focus:border-primary focus:shadow-xl focus:shadow-primary/5 transition-all"
             />
