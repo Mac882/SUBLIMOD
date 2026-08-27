@@ -12,6 +12,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "SubliMod | Productos Personalizados",
   description: "Personalización de productos mediante sublimación y vinilado en Jinotega.",
+  icons: {
+    icon: "/logo-sublimod.svg",
+    shortcut: "/logo-sublimod.svg",
+    apple: "/logo-sublimod.svg",
+  },
 };
 
 export default function RootLayout({
