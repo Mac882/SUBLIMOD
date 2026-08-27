@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Menu, X, ShoppingBag, Laptop } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useCartStore } from "@/store/useCartStore";
 
 const Navbar = () => {
@@ -25,9 +26,19 @@ const Navbar = () => {
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
-          <Link href="/" className="flex flex-col group">
-            <span className="text-2xl font-black text-primary italic leading-none transition-transform group-hover:scale-105">SubliMod</span>
-            <span className="text-[9px] text-secondary font-black tracking-[0.2em] uppercase opacity-70">Donde tu visión toma forma</span>
+          <Link href="/" className="flex items-center group shrink-0" aria-label="SubliMod - Inicio">
+            <Image
+              src="/logo-sublimod.svg"
+              alt="SubliMod"
+              width={52}
+              height={52}
+              priority
+              className="w-11 h-11 sm:w-12 sm:h-12 object-contain transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="hidden sm:flex flex-col ml-3">
+              <span className="text-2xl font-black text-primary italic leading-none transition-transform group-hover:scale-105">SubliMod</span>
+              <span className="text-[9px] text-secondary font-black tracking-[0.2em] uppercase opacity-70">Donde tu visión toma forma</span>
+            </div>
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
