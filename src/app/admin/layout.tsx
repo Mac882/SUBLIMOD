@@ -69,10 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [pathname]);
 
-  const availableLaptops = useMemo(
-    () => laptops.filter((item) => String(item.disponibilidad || "").toLowerCase().includes("dispon")).length,
-    [laptops]
-  );
+  const availableLaptops = useMemo(() => laptops.filter((item) => String(item.disponibilidad || "").toLowerCase().includes("dispon")).length, [laptops]);
   const activeCategories = useMemo(() => categories.filter((item) => item.activa !== false).length, [categories]);
 
   if (!isMainAdmin) return <>{children}</>;
@@ -109,16 +106,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
         {mobile ? <button onClick={() => setMobileOpen(false)} className="rounded-xl p-2 text-gray-500 hover:bg-white/5 hover:text-white"><X size={20} /></button> : <button onClick={() => setCollapsed((value) => !value)} className="rounded-xl p-2 text-gray-500 hover:bg-white/5 hover:text-white" title={collapsed ? "Expandir menú" : "Contraer menú"}>{collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button>}
       </div>
-
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-5">
-        <button onClick={goDashboard} className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left transition ${dashboardOpen ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-gray-400 hover:bg-white/5 hover:text-white"}`} title="Dashboard">
-          <LayoutDashboard size={20} className="shrink-0" />{(!collapsed || mobile) && <span className="text-sm font-bold">Dashboard</span>}
-        </button>
+        <button onClick={goDashboard} className={`flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left transition ${dashboardOpen ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-gray-400 hover:bg-white/5 hover:text-white"}`} title="Dashboard"><LayoutDashboard size={20} className="shrink-0" />{(!collapsed || mobile) && <span className="text-sm font-bold">Dashboard</span>}</button>
         <div className="my-4 border-t border-white/5" />
         {NAV.map(({ label, icon: Icon }) => <button key={label} onClick={() => goTab(label)} className="flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left text-gray-400 transition hover:bg-white/5 hover:text-white" title={label}><Icon size={20} className="shrink-0" />{(!collapsed || mobile) && <span className="text-sm font-bold">{label}</span>}</button>)}
         <button onClick={goTechnology} className="flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left text-gray-400 transition hover:bg-white/5 hover:text-white" title="Tecnología · Laptops"><Laptop size={20} className="shrink-0" />{(!collapsed || mobile) && <span className="text-sm font-bold">Tecnología · Laptops</span>}</button>
       </nav>
-
       <div className="border-t border-white/5 p-3"><button onClick={logout} className="flex w-full items-center gap-4 rounded-2xl px-4 py-3.5 text-left text-red-400 transition hover:bg-red-500/10 hover:text-red-300" title="Cerrar sesión"><LogOut size={20} className="shrink-0" />{(!collapsed || mobile) && <span className="text-sm font-bold">Cerrar sesión</span>}</button></div>
     </aside>
   );
@@ -136,12 +129,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="pointer-events-auto fixed left-0 top-0 hidden h-screen md:block"><Sidebar /></div>
       <div className="pointer-events-auto fixed left-0 top-0 md:hidden"><button onClick={() => setMobileOpen(true)} className="m-4 rounded-2xl border border-white/10 bg-[#191919] p-3 text-primary shadow-xl" aria-label="Abrir menú administrativo"><Menu size={23} /></button></div>
       {mobileOpen && <div className="pointer-events-auto fixed inset-0 flex md:hidden"><div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><div className="relative h-full"><Sidebar mobile /></div></div>}
-
-      {dashboardOpen && <main className="pointer-events-auto fixed inset-0 overflow-y-auto bg-[#121212] text-gray-200" style={{ left: collapsed ? 82 : 286 }}>
+      {dashboardOpen && <main className="pointer-events-auto fixed inset-0 left-0 overflow-y-auto bg-[#121212] text-gray-200 md:left-auto" style={{ marginLeft: typeof window !== "undefined" && window.innerWidth >= 768 ? (collapsed ? 82 : 286) : 0 }}>
         <div className="mx-auto max-w-7xl space-y-8 px-5 py-8 md:px-10 md:py-10">
           <header><p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Centro de control</p><h1 className="text-3xl font-black tracking-tight md:text-5xl">Dashboard</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">Una vista práctica del estado del catálogo y la sección de tecnología.</p></header>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(({ label, value, hint, icon: Icon }) => <div key={label} className="rounded-[1.75rem] border border-white/5 bg-[#1E1E1E] p-5"><div className="mb-6 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-primary"><Icon size={21} /></div><p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p><p className="mt-1 text-4xl font-black text-white">{value}</p><p className="mt-2 text-xs font-semibold text-gray-600">{hint}</p></div>)}</div>
-
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.35fr_.65fr]">
             <section className="rounded-[2rem] border border-white/5 bg-[#1E1E1E] p-5 md:p-7"><div className="mb-5"><h2 className="text-lg font-black uppercase tracking-tight">Actividad reciente</h2><p className="mt-1 text-xs text-gray-600">Últimos productos registrados.</p></div><div className="divide-y divide-white/5">{products.slice(0, 5).map((product) => <button key={product.id} onClick={() => goTab("Productos")} className="flex w-full items-center gap-4 py-4 text-left hover:bg-white/[0.02]"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white/5">{product.imagenUrl && <img src={product.imagenUrl} alt="" className="h-full w-full object-cover" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-black uppercase text-white">{product.nombre || "Sin nombre"}</p><p className="mt-1 truncate text-[10px] font-bold uppercase tracking-widest text-gray-600">{product.categoria || "Sin categoría"}</p></div><ArrowRight size={16} className="text-gray-600" /></button>)}{products.length === 0 && <div className="py-10 text-center text-xs font-bold uppercase tracking-widest text-gray-600">No hay productos registrados</div>}</div></section>
             <section className="rounded-[2rem] border border-white/5 bg-[#1E1E1E] p-5 md:p-7"><div className="mb-5"><h2 className="text-lg font-black uppercase tracking-tight">Accesos rápidos</h2><p className="mt-1 text-xs text-gray-600">Las tareas principales de administración.</p></div><div className="space-y-3"><button onClick={goTechnology} className="flex w-full items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-primary/30"><Laptop className="text-primary" size={20}/><div className="flex-1"><p className="text-xs font-black uppercase">Tecnología · Laptops</p><p className="mt-1 text-[10px] text-gray-600">{laptops.length} registradas</p></div><ArrowRight size={16} className="text-gray-600"/></button><button onClick={() => goTab("Productos")} className="flex w-full items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-primary/30"><Package className="text-accent" size={20}/><div className="flex-1"><p className="text-xs font-black uppercase">Administrar catálogo</p><p className="mt-1 text-[10px] text-gray-600">Productos y categorías</p></div><ArrowRight size={16} className="text-gray-600"/></button><button onClick={() => goTab("Configuración")} className="flex w-full items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-primary/30"><Settings className="text-gray-500" size={20}/><div className="flex-1"><p className="text-xs font-black uppercase">Configuración</p><p className="mt-1 text-[10px] text-gray-600">Datos generales del sitio</p></div><ArrowRight size={16} className="text-gray-600"/></button></div></section>
