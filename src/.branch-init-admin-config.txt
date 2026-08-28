@@ -1,1 +1,0 @@
-Branch initialization marker for actualizacion-admin-configuracion. Remove this file after verifying branch creation.
