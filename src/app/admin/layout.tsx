@@ -18,7 +18,21 @@ const NAV = [
 function clickLegacyTab(label: string) {
   const root = document.querySelector("[data-admin-legacy]");
   const button = Array.from(root?.querySelectorAll("button") ?? []).find((node) => node.textContent?.replace(/\s+/g, " ").trim().toLowerCase() === label.toLowerCase()) as HTMLButtonElement | undefined;
-  button?.click();
+  if (button) {
+    button.click();
+    return true;
+  }
+  return false;
+}
+
+function activateLegacyTab(label: string) {
+  let attempts = 0;
+  const retry = () => {
+    if (clickLegacyTab(label)) return;
+    attempts += 1;
+    if (attempts < 12) window.setTimeout(retry, 50);
+  };
+  window.setTimeout(retry, 0);
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -64,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const goTab = (label: string) => {
     setDashboardOpen(false);
     setMobileOpen(false);
-    window.setTimeout(() => clickLegacyTab(label), 0);
+    activateLegacyTab(label);
   };
   const goTechnology = () => {
     setDashboardOpen(false);
@@ -114,6 +128,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       @media (max-width: 767px) {
         .admin-legacy-content { width: 100% !important; margin-left: 0 !important; padding-top: 72px !important; }
         .admin-legacy-content > div > main { padding: 1rem !important; }
+        .admin-legacy-content main header > button,
+        .admin-legacy-content main section > header > button { width: auto !important; min-width: 0 !important; max-width: 100% !important; padding: 0.75rem 1.1rem !important; border-radius: 0.9rem !important; gap: 0.45rem !important; font-size: 9px !important; line-height: 1.15 !important; }
+        .admin-legacy-content main header > button svg,
+        .admin-legacy-content main section > header > button svg { width: 16px !important; height: 16px !important; }
+        .admin-legacy-content main header { gap: 0.75rem !important; }
       }
       .admin-mobile-toolbar { display: none; }
       @media (max-width: 767px) {
