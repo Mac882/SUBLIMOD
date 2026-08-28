@@ -1,45 +1,461 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
-import { X, ArrowLeft, MessageCircle, ShoppingCart, Check, Minus, Plus, Truck, ShieldCheck, Info, Maximize2 } from "lucide-react";
-import { db } from "@/lib/firebase";
+
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Check,
+  Info,
+  Maximize2,
+  MessageCircle,
+  Minus,
+  Plus,
+  ShieldCheck,
+  ShoppingCart,
+  Truck,
+  X,
+} from "lucide-react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useCartStore } from "@/store/useCartStore";
-interface ProductDetailModalProps { product: any; onClose: () => void; }
+
+interface ProductDetailModalProps {
+  product: any;
+  onClose: () => void;
+}
+
 const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [whatsappNumber, setWhatsappNumber] = useState("86153695");
-  const addItem = useCartStore((state) => state.addItem);
   const [attributeDefinitions, setAttributeDefinitions] = useState<any[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
-  const [selectedColor, setSelectedColor] = useState<any>(null), [quantity, setQuantity] = useState(1), [addedToQuote, setAddedToQuote] = useState(false), [activeImageIndex, setActiveImageIndex] = useState(0), [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<any>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [addedToQuote, setAddedToQuote] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
+
+  const addItem = useCartStore((state) => state.addItem);
+
   useEffect(() => {
-    const unsubConfig = onSnapshot(doc(db, "configuracion", "general"), snap => { if (snap.exists() && snap.data().whatsapp) setWhatsappNumber(snap.data().whatsapp.trim()); });
-    const unsubAttrs = onSnapshot(collection(db, "atributos_globales"), snap => setAttributeDefinitions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubConfig(); unsubAttrs(); };
+    const unsubConfig = onSnapshot(
+      doc(db, "configuracion", "general"),
+      (snap) => {
+        if (snap.exists() && snap.data().whatsapp) {
+          setWhatsappNumber(snap.data().whatsapp.trim());
+        }
+      }
+    );
+
+    const unsubAttrs = onSnapshot(collection(db, "atributos_globales"), (snap) => {
+      setAttributeDefinitions(
+        snap.docs.map((item) => ({ id: item.id, ...item.data() }))
+      );
+    });
+
+    return () => {
+      unsubConfig();
+      unsubAttrs();
+    };
   }, []);
-  const imagesList = useMemo(() => product.imagenes?.length > 0 ? product.imagenes : (product.imagenUrl ? [product.imagenUrl] : []), [product]);
+
+  const imagesList = useMemo(() => {
+    if (Array.isArray(product.imagenes) && product.imagenes.length > 0) {
+      return product.imagenes;
+    }
+
+    return product.imagenUrl ? [product.imagenUrl] : [];
+  }, [product]);
+
   const productAttributes = useMemo(() => {
-    if (Array.isArray(product.atributos)) return product.atributos.map((a: any) => ({ ...a, definition: attributeDefinitions.find(d => d.id === a.atributoId) })).filter((a: any) => a.atributoId);
-    return Object.entries(product.atributos || {}).map(([key, valores]: any) => ({ atributoId: key, valores: Array.isArray(valores) ? valores : [valores], definition: attributeDefinitions.find(d => d.id === key || d.nombreAtributo === key) }));
+    if (Array.isArray(product.atributos)) {
+      return product.atributos
+        .map((attribute: any) => ({
+          ...attribute,
+          definition: attributeDefinitions.find(
+            (definition) => definition.id === attribute.atributoId
+          ),
+        }))
+        .filter((attribute: any) => attribute.atributoId);
+    }
+
+    return Object.entries(product.atributos || {}).map(
+      ([key, valores]: [string, any]) => ({
+        atributoId: key,
+        valores: Array.isArray(valores) ? valores : [valores],
+        definition: attributeDefinitions.find(
+          (definition) =>
+            definition.id === key || definition.nombreAtributo === key
+        ),
+      })
+    );
   }, [product, attributeDefinitions]);
+
   useEffect(() => {
-    setActiveImageIndex(0); setIsImageZoomed(false);
-    const defaults: Record<string, string> = {}; productAttributes.forEach((a: any) => { if (a.valores?.length) defaults[a.atributoId] = a.valores[0]; }); setSelectedAttributes(defaults);
-    setSelectedColor(product.colores?.length ? product.colores[0] : null);
+    setActiveImageIndex(0);
+    setIsImageZoomed(false);
+
+    const defaults: Record<string, string> = {};
+    productAttributes.forEach((attribute: any) => {
+      if (attribute.valores?.length) {
+        defaults[attribute.atributoId] = attribute.valores[0];
+      }
+    });
+
+    setSelectedAttributes(defaults);
+    setSelectedColor(
+      Array.isArray(product.colores) && product.colores.length > 0
+        ? product.colores[0]
+        : null
+    );
   }, [product, productAttributes]);
-  const unitPrice = useMemo(() => { if (!product.escalasPrecios?.length) return 0; const escala = product.escalasPrecios.find((e: any) => quantity >= e.min && quantity <= e.max); return escala ? escala.price : product.escalasPrecios[product.escalasPrecios.length - 1].price; }, [quantity, product.escalasPrecios]);
+
+  const unitPrice = useMemo(() => {
+    if (!Array.isArray(product.escalasPrecios) || product.escalasPrecios.length === 0) {
+      return 0;
+    }
+
+    const escala = product.escalasPrecios.find(
+      (item: any) => quantity >= item.min && quantity <= item.max
+    );
+
+    return escala
+      ? escala.price
+      : product.escalasPrecios[product.escalasPrecios.length - 1].price;
+  }, [quantity, product.escalasPrecios]);
+
   const totalPrice = unitPrice * quantity;
-  const handleDirectOrder = () => { const attrString = productAttributes.map((a: any) => `• *${a.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[a.atributoId] || "N/A"}`).join("\n"); const message = `¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* ${product.nombre}\n- *Cantidad:* ${quantity} unidades\n${attrString}\n- *Variante/Color:* ${selectedColor?.name || "N/A"}\n\n- *Precio Unitario:* C$ ${unitPrice}\n- *Total Estimado:* C$ ${totalPrice}\n\n_Enlace del producto:_ ${window.location.origin}/producto/${product.id}\nQuedo a la espera de su respuesta para coordinar el diseño.`; window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank"); };
-  const handleAddToQuote = () => { addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: product.imagenUrl, atributos: selectedAttributes, color: selectedColor, cantidad: quantity, precioUnitario: unitPrice, total: totalPrice }); setAddedToQuote(true); setTimeout(() => setAddedToQuote(false), 2000); };
-  return <div className="fixed inset-0 bg-secondary/35 backdrop-blur-md z-[100] flex items-center justify-center p-0 lg:p-6 overflow-hidden"><div className="bg-[#F8FAFA] w-full max-w-5xl h-dvh lg:h-auto lg:max-h-[90vh] lg:my-auto rounded-none lg:rounded-[2.5rem] border border-white shadow-2xl overflow-hidden relative animate-in zoom-in duration-300 flex flex-col">
-    <div className="lg:hidden shrink-0 flex items-center justify-between gap-3 px-4 py-3 bg-[#F8FAFA] border-b border-primary/10"><button type="button" onClick={onClose} className="inline-flex items-center gap-2 min-h-11 px-3 rounded-xl text-secondary"><ArrowLeft size={20}/><span className="text-xs font-black uppercase tracking-widest">Volver</span></button><span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Detalle del producto</span><button type="button" onClick={onClose} className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-xl bg-white"><X size={20}/></button></div>
-    <button onClick={onClose} className="hidden lg:block absolute top-5 right-5 z-50 p-3 bg-white/80 rounded-full text-secondary shadow-md" aria-label="Cerrar detalle"><X size={22}/></button>
-    <div className="grid grid-cols-1 lg:grid-cols-2 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden"><div className="bg-[#EEF4F3] p-6 sm:p-8 lg:p-12 flex flex-col items-center justify-center space-y-6 border-b lg:border-b-0 lg:border-r border-primary/10">{imagesList.length > 0 && <button type="button" onClick={() => setIsImageZoomed(true)} className="relative w-full aspect-square max-w-[400px] cursor-zoom-in group rounded-3xl overflow-hidden bg-white/60 border border-white"><img src={imagesList[activeImageIndex]} alt={product.nombre} className="w-full h-full object-contain p-4"/><span className="absolute bottom-4 right-4 bg-white/90 text-secondary px-3 py-2 rounded-xl shadow-md text-[9px] font-black uppercase opacity-0 group-hover:opacity-100 flex items-center gap-2"><Maximize2 size={13}/> Ampliar</span></button>}{imagesList.length > 1 && <div className="flex gap-3 overflow-x-auto w-full max-w-[400px] justify-center">{imagesList.map((img: string, idx: number) => <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 ${activeImageIndex === idx ? "border-primary scale-110" : "border-white opacity-70"}`}><img src={img} alt="" className="w-full h-full object-cover"/></button>)}</div>}<div className="bg-white px-5 py-2.5 rounded-2xl border border-primary/10 flex items-center gap-2"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold text-secondary uppercase">Calidad SubliMod</span></div></div>
-    <div className="p-6 sm:p-8 lg:p-12 space-y-10 lg:max-h-[90vh] lg:overflow-y-auto bg-[#F8FAFA]"><div><div className="flex items-center gap-2 mb-3"><span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase border border-primary/20">{product.categoria}</span></div><h2 className="text-3xl lg:text-4xl font-black text-secondary uppercase tracking-tighter">{product.nombre}</h2>{product.descripcion && <p className="text-gray-600 text-sm mt-4 leading-relaxed italic">{product.descripcion}</p>}</div>
-      <div className="space-y-8">{productAttributes.map((attr: any) => <div key={attr.atributoId} className="space-y-4"><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{attr.definition?.nombreAtributo || "Atributo"}</label><div className="flex flex-wrap gap-2">{(attr.valores || []).map((opt: string) => { const selected = selectedAttributes[attr.atributoId] === opt; return <button key={opt} onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.atributoId]: opt }))} className={`px-5 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${selected ? "bg-primary border-primary text-white shadow-lg" : "bg-white border-gray-200 text-gray-600"}`}>{selected && <Check size={14}/>} {opt}</button>; })}</div></div>)}{product.colores?.length > 0 && <div className="space-y-4"><label className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Variante de Diseño</label><div className="flex flex-wrap gap-3">{product.colores.map((color: any) => { const selected = selectedColor?.name === color.name; return <button key={color.name} onClick={() => setSelectedColor(color)} className={`flex items-center gap-3 p-1.5 pr-4 rounded-2xl border ${selected ? "border-primary bg-primary/10" : "border-gray-200 bg-white"}`}><div className="w-8 h-8 rounded-xl border" style={{backgroundColor: color.hex}}/><span className="text-[10px] font-bold uppercase">{color.name}</span></button>; })}</div></div>}</div>
-      <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-primary/10 space-y-8"><div className="flex flex-col md:flex-row justify-between items-center gap-6"><div className="space-y-3 w-full md:w-auto"><label className="text-[10px] font-black text-gray-500 uppercase block">Cantidad</label><div className="flex items-center justify-between bg-[#F8FAFA] border border-gray-200 rounded-2xl p-1"><button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-3"><Minus size={20}/></button><span className="text-xl font-black text-primary w-12 text-center">{quantity}</span><button onClick={() => setQuantity(quantity + 1)} className="p-3"><Plus size={20}/></button></div></div><div className="text-center md:text-right"><label className="text-[10px] font-black text-gray-500 uppercase block">Total Estimado</label><div className="text-4xl font-black text-accent">C$ {totalPrice}</div><span className="text-[10px] font-bold text-gray-500 uppercase">C$ {unitPrice} por unidad</span></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><button onClick={handleDirectOrder} className="bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3"><MessageCircle size={20}/> Personalizar y Pedir</button><button onClick={handleAddToQuote} className={`py-5 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 border-2 ${addedToQuote ? "bg-green-500/10 border-green-500 text-green-500" : "bg-white border-gray-200 text-secondary"}`}>{addedToQuote ? <><Check size={20}/> ¡Añadido!</> : <><ShoppingCart size={20}/> Añadir a Cotización</>}</button></div></div>
-      <div className="flex flex-col md:flex-row gap-6 border-t border-primary/10 pt-8"><div className="flex items-center gap-3 text-gray-600"><Truck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Envíos Cargo Trans / Interlocal</span></div><div className="flex items-center gap-3 text-gray-600"><Info size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Jinotega, Nicaragua</span></div></div>
-    </div></div>
-    {isImageZoomed && imagesList.length > 0 && <div className="fixed inset-0 z-[300] bg-secondary/80 backdrop-blur-lg flex items-center justify-center p-4" onClick={() => setIsImageZoomed(false)}><button onClick={() => setIsImageZoomed(false)} className="absolute top-5 right-5 w-12 h-12 rounded-full bg-white text-secondary shadow-xl flex items-center justify-center"><X size={24}/></button><img src={imagesList[activeImageIndex]} alt={product.nombre} className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl" onClick={e => e.stopPropagation()}/></div>}
-  </div>;
+
+  const handleDirectOrder = () => {
+    const attrString = productAttributes
+      .map(
+        (attribute: any) =>
+          `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${
+            selectedAttributes[attribute.atributoId] || "N/A"
+          }`
+      )
+      .join("\n");
+
+    const message = `¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* ${product.nombre}\n- *Cantidad:* ${quantity} unidades\n${attrString}\n- *Variante/Color:* ${selectedColor?.name || "N/A"}\n\n- *Precio Unitario:* C$ ${unitPrice}\n- *Total Estimado:* C$ ${totalPrice}\n\n_Enlace del producto:_ ${window.location.origin}/producto/${product.id}\nQuedo a la espera de su respuesta para coordinar el diseño.`;
+
+    window.open(
+      `https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`,
+      "_blank"
+    );
+  };
+
+  const handleAddToQuote = () => {
+    addItem({
+      id: `${product.id}-${Date.now()}`,
+      productId: product.id,
+      nombre: product.nombre,
+      imagen: product.imagenUrl,
+      atributos: selectedAttributes,
+      color: selectedColor,
+      cantidad: quantity,
+      precioUnitario: unitPrice,
+      total: totalPrice,
+    });
+
+    setAddedToQuote(true);
+    setTimeout(() => setAddedToQuote(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-secondary/35 p-0 backdrop-blur-md lg:p-6">
+      <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white bg-[#F8FAFA] shadow-2xl animate-in zoom-in duration-300 lg:my-auto lg:h-auto lg:max-h-[90vh] lg:rounded-[2.5rem]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-primary/10 bg-[#F8FAFA] px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-secondary"
+          >
+            <ArrowLeft size={20} />
+            <span className="text-xs font-black uppercase tracking-widest">Volver</span>
+          </button>
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">
+            Detalle del producto
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white"
+            aria-label="Cerrar detalle"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 z-50 hidden rounded-full bg-white/80 p-3 text-secondary shadow-md lg:block"
+          aria-label="Cerrar detalle"
+        >
+          <X size={22} />
+        </button>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
+          <div className="flex flex-col items-center justify-center space-y-6 border-b border-primary/10 bg-[#EEF4F3] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-12">
+            {imagesList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsImageZoomed(true)}
+                className="group relative aspect-square w-full max-w-[400px] cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"
+                aria-label="Ampliar imagen del producto"
+              >
+                <img
+                  src={imagesList[activeImageIndex]}
+                  alt={product.nombre}
+                  className="h-full w-full object-contain p-4"
+                />
+                <span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                  <Maximize2 size={13} />
+                  Ampliar
+                </span>
+              </button>
+            )}
+
+            {imagesList.length > 1 && (
+              <div className="flex w-full max-w-[400px] gap-3 overflow-x-auto justify-center">
+                {imagesList.map((image: string, index: number) => (
+                  <button
+                    type="button"
+                    key={`${image}-${index}`}
+                    onClick={() => setActiveImageIndex(index)}
+                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${
+                      activeImageIndex === index
+                        ? "scale-110 border-primary"
+                        : "border-white opacity-70"
+                    }`}
+                    aria-label={`Ver imagen ${index + 1}`}
+                  >
+                    <img
+                      src={image}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5">
+              <ShieldCheck size={18} className="text-primary" />
+              <span className="text-[10px] font-bold uppercase text-secondary">
+                Calidad SubliMod
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-10 overflow-y-auto bg-[#F8FAFA] p-6 sm:p-8 lg:max-h-[90vh] lg:p-12">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">
+                  {product.categoria}
+                </span>
+              </div>
+
+              <h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">
+                {product.nombre}
+              </h2>
+
+              {product.descripcion && (
+                <p className="mt-4 text-sm italic leading-relaxed text-gray-600">
+                  {product.descripcion}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-8">
+              {productAttributes.map((attribute: any) => (
+                <div key={attribute.atributoId} className="space-y-4">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                    {attribute.definition?.nombreAtributo || "Atributo"}
+                  </label>
+
+                  <div className="flex flex-wrap gap-2">
+                    {(attribute.valores || []).map((option: string) => {
+                      const selected =
+                        selectedAttributes[attribute.atributoId] === option;
+
+                      return (
+                        <button
+                          type="button"
+                          key={option}
+                          onClick={() =>
+                            setSelectedAttributes((previous) => ({
+                              ...previous,
+                              [attribute.atributoId]: option,
+                            }))
+                          }
+                          className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${
+                            selected
+                              ? "border-primary bg-primary text-white shadow-lg"
+                              : "border-gray-200 bg-white text-gray-600"
+                          }`}
+                        >
+                          {selected && <Check size={14} />}
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {Array.isArray(product.colores) && product.colores.length > 0 && (
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                    Variante de Diseño
+                  </label>
+
+                  <div className="flex flex-wrap gap-3">
+                    {product.colores.map((color: any) => {
+                      const selected = selectedColor?.name === color.name;
+
+                      return (
+                        <button
+                          type="button"
+                          key={color.name}
+                          onClick={() => setSelectedColor(color)}
+                          className={`flex items-center gap-3 rounded-2xl border p-1.5 pr-4 ${
+                            selected
+                              ? "border-primary bg-primary/10"
+                              : "border-gray-200 bg-white"
+                          }`}
+                        >
+                          <div
+                            className="h-8 w-8 rounded-xl border"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="text-[10px] font-bold uppercase">
+                            {color.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-8 rounded-[2rem] border border-primary/10 bg-white p-6 sm:p-8">
+              <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
+                <div className="w-full space-y-3 md:w-auto">
+                  <label className="block text-[10px] font-black uppercase text-gray-500">
+                    Cantidad
+                  </label>
+
+                  <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-[#F8FAFA] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                      className="p-3"
+                      aria-label="Disminuir cantidad"
+                    >
+                      <Minus size={20} />
+                    </button>
+                    <span className="w-12 text-center text-xl font-black text-primary">
+                      {quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((current) => current + 1)}
+                      className="p-3"
+                      aria-label="Aumentar cantidad"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-center md:text-right">
+                  <label className="block text-[10px] font-black uppercase text-gray-500">
+                    Total Estimado
+                  </label>
+                  <div className="text-4xl font-black text-accent">C$ {totalPrice}</div>
+                  <span className="text-[10px] font-bold uppercase text-gray-500">
+                    C$ {unitPrice} por unidad
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={handleDirectOrder}
+                  className="flex items-center justify-center gap-3 rounded-2xl bg-primary py-5 text-sm font-black uppercase tracking-widest text-white"
+                >
+                  <MessageCircle size={20} />
+                  Personalizar y Pedir
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddToQuote}
+                  className={`flex items-center justify-center gap-3 rounded-2xl border-2 py-5 text-sm font-black uppercase ${
+                    addedToQuote
+                      ? "border-green-500 bg-green-500/10 text-green-500"
+                      : "border-gray-200 bg-white text-secondary"
+                  }`}
+                >
+                  {addedToQuote ? (
+                    <>
+                      <Check size={20} />
+                      ¡Añadido!
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart size={20} />
+                      Añadir a Cotización
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6 border-t border-primary/10 pt-8 md:flex-row">
+              <div className="flex items-center gap-3 text-gray-600">
+                <Truck size={18} className="text-primary" />
+                <span className="text-[10px] font-bold uppercase">
+                  Envíos Cargo Trans / Interlocal
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-gray-600">
+                <Info size={18} className="text-primary" />
+                <span className="text-[10px] font-bold uppercase">
+                  Jinotega, Nicaragua
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {isImageZoomed && imagesList.length > 0 && (
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-secondary/80 p-4 backdrop-blur-lg"
+            onClick={() => setIsImageZoomed(false)}
+            role="presentation"
+          >
+            <button
+              type="button"
+              onClick={() => setIsImageZoomed(false)}
+              className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl"
+              aria-label="Cerrar imagen ampliada"
+            >
+              <X size={24} />
+            </button>
+
+            <img
+              src={imagesList[activeImageIndex]}
+              alt={product.nombre}
+              className="max-h-[90vh] max-w-[95vw] rounded-2xl object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
+
 export default ProductDetailModal;
