@@ -31,22 +31,22 @@ const normalizeProductAttributes = (raw: unknown) => {
 
 const normalizeProductAttributeStorage = async () => {
   const snapshot = await getDocs(collection(db, "productos"));
-  const batch = writeBatch(db);
-  let updates = 0;
+  const pending = snapshot.docs
+    .map((productDoc) => {
+      const normalized = normalizeProductAttributes(productDoc.data().atributos);
+      return normalized
+        ? { ref: doc(db, "productos", productDoc.id), atributos: normalized }
+        : null;
+    })
+    .filter((item): item is { ref: ReturnType<typeof doc>; atributos: Record<string, string[]> } => Boolean(item));
 
-  snapshot.docs.forEach((productDoc) => {
-    const data = productDoc.data();
-    const normalized = normalizeProductAttributes(data.atributos);
-
-    if (!normalized) return;
-
-    batch.update(doc(db, "productos", productDoc.id), {
-      atributos: normalized,
+  // Firestore limita un batch a 500 operaciones. Dejamos margen para no
+  // acercarnos al límite y procesamos por bloques.
+  for (let index = 0; index < pending.length; index += 400) {
+    const batch = writeBatch(db);
+    pending.slice(index, index + 400).forEach((item) => {
+      batch.update(item.ref, { atributos: item.atributos });
     });
-    updates += 1;
-  });
-
-  if (updates > 0) {
     await batch.commit();
   }
 };
@@ -67,11 +67,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        // Los productos creados por el flujo anterior pueden tener
-        // atributos como [{ atributoId, valores }]. El preview del admin
-        // y otros consumidores esperan un mapa atributoId -> valores.
-        // Normalizamos esos registros antes de montar el dashboard para
-        // evitar que React intente renderizar el objeto directamente.
+        // El flujo anterior podía guardar atributos como
+        // [{ atributoId, valores }]. El preview del admin trabaja con
+        // un mapa atributoId -> valores, así que migramos esos registros
+        // antes de montar el dashboard.
         await normalizeProductAttributeStorage();
       } catch (error) {
         console.error("Error al normalizar atributos de productos", error);
