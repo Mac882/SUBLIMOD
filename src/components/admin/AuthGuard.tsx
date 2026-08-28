@@ -1,9 +1,55 @@
 "use client";
 import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+
+const normalizeProductAttributes = (raw: unknown) => {
+  if (!Array.isArray(raw)) return null;
+
+  const normalized: Record<string, string[]> = {};
+
+  raw.forEach((attribute) => {
+    if (!attribute || typeof attribute !== "object") return;
+
+    const item = attribute as { atributoId?: unknown; valores?: unknown };
+    if (typeof item.atributoId !== "string" || !item.atributoId) return;
+
+    const values = Array.isArray(item.valores)
+      ? item.valores.filter((value): value is string => typeof value === "string")
+      : typeof item.valores === "string"
+        ? [item.valores]
+        : [];
+
+    normalized[item.atributoId] = values;
+  });
+
+  return normalized;
+};
+
+const normalizeProductAttributeStorage = async () => {
+  const snapshot = await getDocs(collection(db, "productos"));
+  const batch = writeBatch(db);
+  let updates = 0;
+
+  snapshot.docs.forEach((productDoc) => {
+    const data = productDoc.data();
+    const normalized = normalizeProductAttributes(data.atributos);
+
+    if (!normalized) return;
+
+    batch.update(doc(db, "productos", productDoc.id), {
+      atributos: normalized,
+    });
+    updates += 1;
+  });
+
+  if (updates > 0) {
+    await batch.commit();
+  }
+};
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -11,23 +57,38 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Escucha si el usuario está logueado o no en Firebase
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Si hay un usuario, está autorizado
-        setAuthorized(true);
-      } else {
-        // Si no hay usuario, lo redirigimos a la página de login
+    let cancelled = false;
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
         router.push("/admin/login");
+        if (!cancelled) setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        // Los productos creados por el flujo anterior pueden tener
+        // atributos como [{ atributoId, valores }]. El preview del admin
+        // y otros consumidores esperan un mapa atributoId -> valores.
+        // Normalizamos esos registros antes de montar el dashboard para
+        // evitar que React intente renderizar el objeto directamente.
+        await normalizeProductAttributeStorage();
+      } catch (error) {
+        console.error("Error al normalizar atributos de productos", error);
+      }
+
+      if (!cancelled) {
+        setAuthorized(true);
+        setLoading(false);
+      }
     });
 
-    // Limpiamos el cargador al desmontar
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [router]);
 
-  // Mientras Firebase verifica la sesión, mostramos una pantalla de carga
   if (loading) {
     return (
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center gap-4">
@@ -37,6 +98,5 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Si está autorizado, mostramos el contenido (el Dashboard)
   return authorized ? <>{children}</> : null;
 }
