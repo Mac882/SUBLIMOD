@@ -20,7 +20,6 @@ export default function NosotrosPage() {
     mapsEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3896.228!2d-85.99!3d13.09!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTPCsDA1JzI0LjAiTiA8NcKwNTknMjQuMCJX!5e0!3m2!1ses!2sni!4v1"
   });
 
-  // --- ESCUCHAR CONFIGURACIÓN COMPLETA EN TIEMPO REAL DESDE FIRESTORE ---
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, "configuracion", "general"), (snap) => {
       if (snap.exists()) {
@@ -43,21 +42,9 @@ export default function NosotrosPage() {
   }, []);
 
   const pilares = [
-    {
-      icon: <Award className="text-primary" size={28} />,
-      titulo: "Calidad Garantizada",
-      desc: "Insumos premium de alta durabilidad.",
-    },
-    {
-      icon: <Heart className="text-primary" size={28} />,
-      titulo: "Atención Personalizada",
-      desc: "Asesoría creativa en cada diseño.",
-    },
-    {
-      icon: <Truck className="text-primary" size={28} />,
-      titulo: "Envíos Rápidos",
-      desc: "Cobertura nacional desde Jinotega.",
-    },
+    { icon: <Award className="text-primary" size={28} />, titulo: "Calidad Garantizada", desc: "Insumos premium de alta durabilidad." },
+    { icon: <Heart className="text-primary" size={28} />, titulo: "Atención Personalizada", desc: "Asesoría creativa en cada diseño." },
+    { icon: <Truck className="text-primary" size={28} />, titulo: "Envíos Rápidos", desc: "Cobertura nacional desde Jinotega." },
   ];
 
   return (
@@ -66,15 +53,13 @@ export default function NosotrosPage() {
 
       <section className="py-20 px-6 overflow-hidden flex-grow">
         <div className="max-w-7xl mx-auto space-y-24">
-          
-          {/* 1. SECCIÓN HISTORIA Y TALLER */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
             <div className="relative">
-              <div className="aspect-[4/5] md:aspect-square rounded-[3rem] overflow-hidden shadow-2xl border-8 border-gray-50 bg-gray-100">
+              <div className="aspect-[4/5] md:aspect-square rounded-[3rem] overflow-hidden shadow-2xl border-8 border-gray-50 bg-gray-100 flex items-center justify-center p-3 sm:p-5">
                 <img
                   src={configData.aboutImageUrl}
                   alt="Taller Creativo SubliMod"
-                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  className="max-w-full max-h-full w-full h-full object-contain object-center transition-opacity duration-300"
                 />
               </div>
               <div className="absolute -bottom-6 -right-4 bg-[#1A1A1A] p-8 rounded-[2.5rem] shadow-2xl border border-white/10 hidden sm:block">
@@ -88,26 +73,17 @@ export default function NosotrosPage() {
               <span className="text-primary font-black tracking-[0.3em] uppercase text-xs mb-4 flex items-center gap-2">
                 <div className="h-px w-8 bg-primary"></div> Sobre SubliMod
               </span>
-              
               <h1 className="text-4xl md:text-6xl font-black text-secondary mb-8 tracking-tighter uppercase leading-[1.1] pt-2">
                 {configData.aboutTitle}
               </h1>
-              
               <div className="space-y-6 text-secondary/80 text-lg leading-relaxed mb-10 font-medium italic">
-                <p>
-                  {configData.aboutParagraph1}
-                </p>
-                <p className="not-italic text-base text-secondary/60">
-                  {configData.aboutParagraph2}
-                </p>
+                <p>{configData.aboutParagraph1}</p>
+                <p className="not-italic text-base text-secondary/60">{configData.aboutParagraph2}</p>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8 border-t border-gray-100">
                 {pilares.map((pilar, index) => (
                   <div key={index} className="flex flex-col items-start group">
-                    <div className="mb-4 p-3 bg-gray-50 rounded-2xl group-hover:bg-primary/10 transition-colors">
-                      {pilar.icon}
-                    </div>
+                    <div className="mb-4 p-3 bg-gray-50 rounded-2xl group-hover:bg-primary/10 transition-colors">{pilar.icon}</div>
                     <h4 className="font-black text-secondary text-xs uppercase tracking-widest mb-1">{pilar.titulo}</h4>
                     <p className="text-xs text-secondary/50 font-bold uppercase tracking-tighter">{pilar.desc}</p>
                   </div>
@@ -116,72 +92,23 @@ export default function NosotrosPage() {
             </div>
           </div>
 
-          {/* 2. SECCIÓN DE UBICACIÓN Y MAPA INTERACTIVO */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-stretch">
-            
-            {/* Tarjeta de Contacto */}
             <div className="lg:col-span-1 bg-[#1A1A1A] p-10 rounded-[3rem] shadow-2xl flex flex-col justify-between border border-white/5 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                <ShieldCheck size={120} className="text-white" />
-              </div>
-
+              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><ShieldCheck size={120} className="text-white" /></div>
               <div className="space-y-10 relative z-10">
                 <h3 className="text-white font-black text-3xl uppercase tracking-tighter">Jinotega <br /><span className="text-primary">Nicaragua</span></h3>
-                
                 <div className="space-y-8">
-                  <div className="flex gap-5 items-start">
-                    <div className="bg-primary/20 p-3 rounded-xl"><MapPin className="text-primary" size={20} /></div>
-                    <div>
-                      <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Dirección Exacta</p>
-                      <p className="text-white text-sm font-bold leading-relaxed uppercase">{configData.address}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-5 items-start">
-                    <div className="bg-primary/20 p-3 rounded-xl"><MessageCircle className="text-primary" size={20} /></div>
-                    <div>
-                      <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Atención Directa</p>
-                      <a href={`https://wa.me/505${configData.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-accent text-xl font-black hover:underline transition-all">
-                        +505 {configData.whatsapp}
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-5 items-start">
-                    <div className="bg-primary/20 p-3 rounded-xl"><Truck className="text-primary" size={20} /></div>
-                    <div>
-                      <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Cobertura</p>
-                      <p className="text-white text-sm font-bold uppercase">{configData.envios}</p>
-                    </div>
-                  </div>
+                  <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><MapPin className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Dirección Exacta</p><p className="text-white text-sm font-bold leading-relaxed uppercase">{configData.address}</p></div></div>
+                  <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><MessageCircle className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Atención Directa</p><a href={`https://wa.me/505${configData.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-accent text-xl font-black hover:underline transition-all">+505 {configData.whatsapp}</a></div></div>
+                  <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><Truck className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Cobertura</p><p className="text-white text-sm font-bold uppercase">{configData.envios}</p></div></div>
                 </div>
               </div>
-
-              <a 
-                href={configData.mapsUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="mt-12 flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all group relative z-10"
-              >
-                Abrir en Google Maps <ExternalLink size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-              </a>
+              <a href={configData.mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-12 flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all group relative z-10">Abrir en Google Maps <ExternalLink size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /></a>
             </div>
 
-            {/* Iframe del Mapa */}
             <div className="lg:col-span-2 min-h-[450px] rounded-[3.5rem] overflow-hidden shadow-2xl border-4 border-gray-50 relative group bg-gray-100">
-              <iframe
-                src={configData.mapsEmbedUrl}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen={true}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Ubicación SubliMod"
-                className="grayscale-[20%] group-hover:grayscale-0 transition-all duration-1000"
-              ></iframe>
+              <iframe src={configData.mapsEmbedUrl} width="100%" height="100%" style={{ border: 0 }} allowFullScreen={true} loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Ubicación SubliMod" className="grayscale-[20%] group-hover:grayscale-0 transition-all duration-1000"></iframe>
             </div>
-
           </div>
         </div>
       </section>
