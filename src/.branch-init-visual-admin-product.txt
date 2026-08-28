@@ -1,1 +1,0 @@
-Branch initialization marker for Visual Admin Producto. Remove this file after verifying branch creation.
