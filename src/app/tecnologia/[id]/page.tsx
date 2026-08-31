@@ -8,24 +8,19 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { db } from "@/lib/firebase";
 import { technologyCategoriesCollection, technologyProductsCollection } from "@/lib/technology/repository";
+import { buildTechnologyWhatsappUrl, defaultTechnologyWhatsappConfig, subscribeTechnologyWhatsapp, type TechnologyWhatsappConfig } from "@/lib/technology/whatsapp";
 import type { TechnologyCategory, TechnologyProduct } from "@/lib/technology/types";
 
 const fallbackLabels: Record<string, string> = {
-  brand: "Marca",
-  processor: "Procesador",
-  ram: "RAM",
-  storage: "Almacenamiento",
-  os: "Sistema operativo",
-  color: "Color",
-  screenSize: "Tamaño de pantalla",
-  resolution: "Resolución",
-  refreshRate: "Frecuencia de actualización",
+  brand: "Marca", processor: "Procesador", ram: "RAM", storage: "Almacenamiento", os: "Sistema operativo",
+  color: "Color", screenSize: "Tamaño de pantalla", resolution: "Resolución", refreshRate: "Frecuencia de actualización",
 };
 
 export default function TecnologiaProductPage() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<TechnologyProduct | null>(null);
   const [category, setCategory] = useState<TechnologyCategory | null>(null);
+  const [whatsapp, setWhatsapp] = useState<TechnologyWhatsappConfig>(defaultTechnologyWhatsappConfig);
   const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
@@ -41,6 +36,8 @@ export default function TecnologiaProductPage() {
       setCategory(snapshot.exists() ? { id: snapshot.id, ...(snapshot.data() as Omit<TechnologyCategory, "id">) } : null);
     });
   }, [product?.categoryId]);
+
+  useEffect(() => subscribeTechnologyWhatsapp(setWhatsapp), []);
 
   const images = useMemo(() => product?.images?.length ? product.images : product?.coverImage ? [product.coverImage] : [], [product]);
   const currentImage = images[activeImage] || images[0] || "";
@@ -62,6 +59,8 @@ export default function TecnologiaProductPage() {
     return <main className="min-h-screen bg-[#f5f8ff] text-[#16254a]"><Navbar /><div className="mx-auto max-w-6xl px-4 py-20"><p>Producto no encontrado.</p><Link className="mt-4 inline-flex rounded-full bg-[#3158ee] px-5 py-3 text-sm font-bold text-white" href="/tecnologia">Volver a tecnología</Link></div><Footer /></main>;
   }
 
+  const whatsappUrl = buildTechnologyWhatsappUrl(whatsapp.phone, product.name);
+
   return (
     <main className="min-h-screen bg-[#f5f8ff] text-[#16254a]">
       <Navbar />
@@ -69,47 +68,16 @@ export default function TecnologiaProductPage() {
         <div className="pointer-events-none absolute -left-32 top-10 h-80 w-80 rounded-full bg-[#c7d8ff]/55 blur-3xl" />
         <div className="pointer-events-none absolute right-[-100px] top-44 h-96 w-96 rounded-full bg-[#8fd3ff]/35 blur-3xl" />
         <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-          <nav className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#7890b4]" aria-label="Breadcrumb">
-            <Link href="/">Inicio</Link><span>›</span><Link href="/tecnologia">Tecnología</Link><span>›</span><span className="text-[#3158ee]">{category?.name || "Producto"}</span>
-          </nav>
-
+          <nav className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#7890b4]" aria-label="Breadcrumb"><Link href="/">Inicio</Link><span>›</span><Link href="/tecnologia">Tecnología</Link><span>›</span><span className="text-[#3158ee]">{category?.name || "Producto"}</span></nav>
           <div className="mt-5 grid items-start gap-7 lg:grid-cols-[1.02fr_0.98fr]">
-            <section className="rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-[0_24px_60px_rgba(42,67,125,0.12)] backdrop-blur">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-[1.6rem] bg-[#e9efff]">
-                {currentImage ? <img src={currentImage} alt={product.name} className="h-full w-full object-contain p-5 sm:p-7" /> : <div className="flex h-full items-center justify-center text-sm font-semibold text-[#7c8daa]">Sin imagen disponible</div>}
-                <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-[#3158ee] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">{product.condition}</span>
-                  {product.available !== false && <span className="rounded-full bg-[#11b77a] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">Disponible</span>}
-                </div>
-              </div>
-              {images.length > 1 && <div className="mt-3 grid grid-cols-5 gap-2">{images.map((image, index) => <button type="button" key={image} onClick={() => setActiveImage(index)} className={`overflow-hidden rounded-xl border-2 bg-white transition ${activeImage === index ? "border-[#3158ee]" : "border-transparent"}`} aria-label={`Ver imagen ${index + 1}`}><img src={image} alt="" className="aspect-square w-full object-cover" /></button>)}</div>}
-            </section>
-
-            <section className="pt-2 lg:pt-5">
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-[#3158ee]">{category?.name || "Tecnología"}</p>
-              <h1 className="mt-3 text-4xl font-black uppercase leading-[0.95] tracking-[-0.04em] text-[#17284d] sm:text-5xl">{product.name}</h1>
-              <p className="mt-3 text-base font-semibold text-[#6a7e9e]">{product.brand || product.filterValues?.brand}{product.model ? ` · ${product.model}` : ""}</p>
-              <div className="mt-6 flex flex-wrap items-end gap-x-5 gap-y-2">
-                <span className="text-4xl font-black text-[#3158ee]">{product.currency === "USD" ? "$" : "C$"}{Number(product.price).toLocaleString()}</span>
-                {product.previousPrice > product.price && <span className="pb-1 text-sm font-bold text-[#8a9bb7] line-through">{product.currency === "USD" ? "$" : "C$"}{Number(product.previousPrice).toLocaleString()}</span>}
-              </div>
-              {product.shortDescription && <p className="mt-5 max-w-2xl text-base leading-7 text-[#566c8e]">{product.shortDescription}</p>}
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Estado</p><p className="mt-2 text-sm font-extrabold text-[#20345e]">{product.condition}</p></div>
-                <div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Disponibilidad</p><p className="mt-2 text-sm font-extrabold text-[#20345e]">{product.available === false ? "No disponible" : "Disponible"}</p></div>
-                <div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Categoría</p><p className="mt-2 truncate text-sm font-extrabold text-[#20345e]">{category?.name || "Tecnología"}</p></div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3"><Link href="/tecnologia" className="inline-flex items-center justify-center rounded-full border-2 border-[#3158ee] bg-white px-6 py-3.5 text-xs font-black uppercase tracking-widest text-[#3158ee] transition hover:bg-[#edf2ff]">← Ver tecnología</Link>{product.available !== false && <button type="button" className="inline-flex items-center justify-center rounded-full bg-[#3158ee] px-7 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-[#3158ee]/20 transition hover:-translate-y-0.5">Consultar producto →</button>}</div>
+            <section className="rounded-[2rem] border border-white/80 bg-white/90 p-3 shadow-[0_24px_60px_rgba(42,67,125,0.12)] backdrop-blur"><div className="relative aspect-[4/3] overflow-hidden rounded-[1.6rem] bg-[#e9efff]">{currentImage ? <img src={currentImage} alt={product.name} className="h-full w-full object-contain p-5 sm:p-7" /> : <div className="flex h-full items-center justify-center text-sm font-semibold text-[#7c8daa]">Sin imagen disponible</div>}<div className="absolute left-4 top-4 flex flex-wrap gap-2"><span className="rounded-full bg-[#3158ee] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">{product.condition}</span>{product.available !== false && <span className="rounded-full bg-[#11b77a] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">Disponible</span>}</div></div>{images.length > 1 && <div className="mt-3 grid grid-cols-5 gap-2">{images.map((image, index) => <button type="button" key={image} onClick={() => setActiveImage(index)} className={`overflow-hidden rounded-xl border-2 bg-white transition ${activeImage === index ? "border-[#3158ee]" : "border-transparent"}`} aria-label={`Ver imagen ${index + 1}`}><img src={image} alt="" className="aspect-square w-full object-cover" /></button>)}</div>}</section>
+            <section className="pt-2 lg:pt-5"><p className="text-[11px] font-black uppercase tracking-[0.3em] text-[#3158ee]">{category?.name || "Tecnología"}</p><h1 className="mt-3 text-4xl font-black uppercase leading-[0.95] tracking-[-0.04em] text-[#17284d] sm:text-5xl">{product.name}</h1><p className="mt-3 text-base font-semibold text-[#6a7e9e]">{product.brand || product.filterValues?.brand}{product.model ? ` · ${product.model}` : ""}</p><div className="mt-6 flex flex-wrap items-end gap-x-5 gap-y-2"><span className="text-4xl font-black text-[#3158ee]">{product.currency === "USD" ? "$" : "C$"}{Number(product.price).toLocaleString()}</span>{product.previousPrice > product.price && <span className="pb-1 text-sm font-bold text-[#8a9bb7] line-through">{product.currency === "USD" ? "$" : "C$"}{Number(product.previousPrice).toLocaleString()}</span>}</div>{product.shortDescription && <p className="mt-5 max-w-2xl text-base leading-7 text-[#566c8e]">{product.shortDescription}</p>}
+              <div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Estado</p><p className="mt-2 text-sm font-extrabold text-[#20345e]">{product.condition}</p></div><div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Disponibilidad</p><p className="mt-2 text-sm font-extrabold text-[#20345e]">{product.available === false ? "No disponible" : "Disponible"}</p></div><div className="rounded-2xl border border-[#dfe8fb] bg-white p-4"><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#7086aa]">Categoría</p><p className="mt-2 truncate text-sm font-extrabold text-[#20345e]">{category?.name || "Tecnología"}</p></div></div>
+              <div className="mt-6 flex flex-wrap gap-3"><Link href="/tecnologia" className="inline-flex items-center justify-center rounded-full border-2 border-[#3158ee] bg-white px-6 py-3.5 text-xs font-black uppercase tracking-widest text-[#3158ee] transition hover:bg-[#edf2ff]">← Ver tecnología</Link>{product.available !== false && <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-7 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-[#25D366]/25 transition hover:-translate-y-0.5 hover:bg-[#20bd5a]"><span aria-hidden="true" className="grid h-5 w-5 place-items-center rounded-full border-2 border-white text-[11px] font-black">⌕</span>Realizar pedido <span aria-hidden="true">→</span></a>}</div>
+              <p className="mt-3 text-xs font-medium text-[#8192ae]">Se abrirá WhatsApp con el producto seleccionado en el mensaje.</p>
             </section>
           </div>
-
-          <section className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
-            <div className="rounded-[1.8rem] border border-[#dfe8fb] bg-white p-5 shadow-sm sm:p-7"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#edf2ff] text-[#3158ee]">▦</span><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Detalle técnico</p><h2 className="mt-1 text-xl font-black uppercase text-[#1b2e55]">Especificaciones</h2></div></div><div className="mt-5 overflow-hidden rounded-2xl border border-[#e7edf8]">{specs.length ? specs.map((spec, index) => <div key={`${spec.label}-${index}`} className={`grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-4 px-4 py-3 text-sm ${index % 2 ? "bg-[#fbfcff]" : "bg-white"}`}><span className="font-bold text-[#334a70]">{spec.label}</span><span className="font-medium text-[#6980a2]">{spec.value}</span></div>) : <p className="p-6 text-sm text-[#7a8eac]">No hay especificaciones adicionales registradas.</p>}</div></div>
-            <aside className="rounded-[1.8rem] border border-[#dfe8fb] bg-gradient-to-br from-white to-[#eef5ff] p-6 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Compra con confianza</p><h2 className="mt-2 text-2xl font-black uppercase text-[#1b2e55]">Equipo seleccionado</h2><div className="mt-5 space-y-3 text-sm text-[#5b7193]"><p>✓ Información clara del equipo</p><p>✓ Imágenes reales del producto</p><p>✓ Estado visible antes de consultar</p>{product.warranty && <p>✓ {product.warrantyDetail || "Garantía incluida"}</p>}</div></aside>
-          </section>
-
+          <section className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]"><div className="rounded-[1.8rem] border border-[#dfe8fb] bg-white p-5 shadow-sm sm:p-7"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#edf2ff] text-[#3158ee]">▦</span><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Detalle técnico</p><h2 className="mt-1 text-xl font-black uppercase text-[#1b2e55]">Especificaciones</h2></div></div><div className="mt-5 overflow-hidden rounded-2xl border border-[#e7edf8]">{specs.length ? specs.map((spec, index) => <div key={`${spec.label}-${index}`} className={`grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-4 px-4 py-3 text-sm ${index % 2 ? "bg-[#fbfcff]" : "bg-white"}`}><span className="font-bold text-[#334a70]">{spec.label}</span><span className="font-medium text-[#6980a2]">{spec.value}</span></div>) : <p className="p-6 text-sm text-[#7a8eac]">No hay especificaciones adicionales registradas.</p>}</div></div><aside className="rounded-[1.8rem] border border-[#dfe8fb] bg-gradient-to-br from-white to-[#eef5ff] p-6 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Compra con confianza</p><h2 className="mt-2 text-2xl font-black uppercase text-[#1b2e55]">Equipo seleccionado</h2><div className="mt-5 space-y-3 text-sm text-[#5b7193]"><p>✓ Información clara del equipo</p><p>✓ Imágenes reales del producto</p><p>✓ Estado visible antes de consultar</p>{product.warranty && <p>✓ {product.warrantyDetail || "Garantía incluida"}</p>}</div></aside></section>
           {(product.description || product.includes.length || product.tests) && <section className="mt-6 rounded-[1.8rem] border border-[#dfe8fb] bg-white p-6 shadow-sm sm:p-7"><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Información adicional</p>{product.description && <div className="mt-4 whitespace-pre-line text-[15px] leading-7 text-[#586f92]">{product.description}</div>}{product.includes.length > 0 && <p className="mt-5 text-sm leading-6 text-[#586f92]"><strong className="text-[#253b62]">Incluye:</strong> {product.includes.join(", ")}</p>}{product.tests && <p className="mt-5 text-sm leading-6 text-[#586f92]"><strong className="text-[#253b62]">Pruebas realizadas:</strong> {product.tests}</p>}</section>}
         </div>
       </div>
