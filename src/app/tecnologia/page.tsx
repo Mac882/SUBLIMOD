@@ -18,11 +18,11 @@ export default function TecnologiaPage() {
 
   const visibleCategories = useMemo(() => categories.filter((category) => category.visible).sort((a, b) => a.order - b.order), [categories]);
   const filtered = useMemo(() => products.filter((product) => {
-    if (product.availability === "Vendida") return false;
+    if (product.available === false) return false;
     if (categoryId !== "all" && product.categoryId !== categoryId) return false;
     const text = `${product.name} ${product.brand} ${product.model} ${product.sku}`.toLowerCase();
     return text.includes(search.toLowerCase());
   }), [products, categoryId, search]);
 
-  return <main><Navbar /><section><h1>Tecnología</h1><p>Catálogo tecnológico de SubliMod.</p></section><section><nav><button onClick={() => setCategoryId("all")}>Todos</button>{visibleCategories.map((category) => <button key={category.id} onClick={() => setCategoryId(category.id || "")}>{category.name}</button>)}</nav><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto..." /><div>{filtered.map((product) => <Link href={`/tecnologia/${product.id}`} key={product.id}><article><h2>{product.name}</h2><p>{product.brand} · {product.model}</p><p>{product.currency === "USD" ? "$" : "C$"} {Number(product.price).toLocaleString()}</p></article></Link>)}{filtered.length === 0 && <p>No hay productos tecnológicos disponibles.</p>}</div></section><Footer /></main>;
+  return <main><Navbar /><section><h1>Tecnología</h1><p>Catálogo tecnológico de SubliMod.</p></section><section><nav><button onClick={() => setCategoryId("all")}>Todos</button>{visibleCategories.map((category) => <button key={category.id} onClick={() => setCategoryId(category.id || "")}>{category.name}</button>)}</nav><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto..." /><div>{filtered.map((product) => <Link href={`/tecnologia/${product.id}`} key={product.id}><article><h2>{product.name}</h2><p>{product.brand} · {product.model}</p><p>{product.currency === "USD" ? "$" : "C$"} {Number(product.price).toLocaleString()}</p><span>Disponible</span></article></Link>)}{filtered.length === 0 && <p>No hay productos tecnológicos disponibles.</p>}</div></section><Footer /></main>;
 }
