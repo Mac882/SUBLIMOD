@@ -123,7 +123,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .admin-legacy-content > div > aside { display: none !important; }
       .admin-legacy-content > div > header { display: none !important; }
       .admin-legacy-content > div > main { min-height: 100%; width: 100% !important; margin: 0 !important; }
-      .admin-legacy-content > div > main > section:first-child { display: none !important; }
       @media (max-width: 767px) {
         .admin-legacy-content { width: 100% !important; min-height: 100%; padding-top: 72px !important; }
         .admin-legacy-content > div > main { padding: 1rem !important; }
