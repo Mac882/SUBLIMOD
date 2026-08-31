@@ -1,7 +1,8 @@
 import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { TechnologyCategory } from "./types";
-import { technologyCategoriesCollection } from "./repository";
+
+const technologyCategoriesCollection = "tecnologia_categorias";
 
 export const PREDEFINED_TECHNOLOGY_CATEGORIES: Omit<TechnologyCategory, "id">[] = [
   {
