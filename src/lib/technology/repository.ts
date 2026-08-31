@@ -1,15 +1,21 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { TechnologyCategory, TechnologyProduct } from "./types";
+import { ensurePredefinedTechnologyCategories } from "./predefined";
 
 export const technologyCategoriesCollection = "tecnologia_categorias";
 export const technologyProductsCollection = "tecnologia_productos";
 
-export const subscribeTechnologyCategories = (onChange: (items: TechnologyCategory[]) => void) =>
-  onSnapshot(
+export const subscribeTechnologyCategories = (onChange: (items: TechnologyCategory[]) => void) => {
+  void ensurePredefinedTechnologyCategories().catch((error) => {
+    console.error("No se pudieron inicializar las categorías predefinidas de tecnología:", error);
+  });
+
+  return onSnapshot(
     query(collection(db, technologyCategoriesCollection), orderBy("order", "asc")),
     (snapshot) => onChange(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<TechnologyCategory, "id">) }))),
   );
+};
 
 export const subscribeTechnologyProducts = (onChange: (items: TechnologyProduct[]) => void) =>
   onSnapshot(
