@@ -29,6 +29,7 @@ export type TechnologyProduct = {
   price: number;
   currency: "USD" | "NIO";
   previousPrice: number;
+  available: boolean;
   availability: "Disponible" | "Reservada" | "Vendida";
   condition: "Nuevo" | "Como nuevo" | "Usado - Excelente" | "Usado - Muy bueno" | "Reacondicionado";
   physicalCondition: string;
@@ -53,6 +54,7 @@ export const emptyTechnologyProduct: TechnologyProduct = {
   price: 0,
   currency: "USD",
   previousPrice: 0,
+  available: true,
   availability: "Disponible",
   condition: "Usado - Excelente",
   physicalCondition: "",
