@@ -36,6 +36,17 @@ export type TechnologyProduct = {
   shortDescription: string;
   description: string;
   specifications: Record<string, string | number | boolean>;
+  filterValues?: {
+    brand?: string;
+    processor?: string;
+    ram?: string;
+    storage?: string;
+    os?: string;
+    color?: string;
+    screenSize?: string;
+    resolution?: string;
+    refreshRate?: string;
+  };
   includes: string[];
   warranty: boolean;
   warrantyDetail: string;
@@ -61,6 +72,7 @@ export const emptyTechnologyProduct: TechnologyProduct = {
   shortDescription: "",
   description: "",
   specifications: {},
+  filterValues: {},
   includes: [],
   warranty: true,
   warrantyDetail: "",
