@@ -4,80 +4,65 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { BadgeCheck, ChevronDown, ChevronRight, Cpu, Filter, Grid2X2, Heart, Laptop, List, Monitor, Mouse, Search, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { subscribeTechnologyCategories, subscribeTechnologyFilterOptions, subscribeTechnologyProducts } from "@/lib/technology/repository";
+import { defaultTechnologyHomeConfig, subscribeTechnologyHomeConfig, type TechnologyHomeConfig } from "@/lib/technology/homeConfig";
 import type { TechnologyCategory, TechnologyProduct } from "@/lib/technology/types";
 import type { TechnologyFilterKey, TechnologyFilterOption } from "@/lib/technology/filterCatalog";
 
-const FILTERS_BY_CATEGORY: Record<string, TechnologyFilterKey[]> = {
-  laptops: ["brand", "processor", "ram", "storage", "os", "color"],
-  "computadoras-escritorio": ["brand", "processor", "ram", "storage", "os", "color"],
-  monitores: ["brand", "screenSize", "resolution", "refreshRate", "color"],
-};
+const FILTERS: Record<string, TechnologyFilterKey[]> = { laptops: ["brand", "processor", "ram", "storage", "os", "color"], "computadoras-escritorio": ["brand", "processor", "ram", "storage", "os", "color"], monitores: ["brand", "screenSize", "resolution", "refreshRate", "color"] };
 const LABELS: Record<TechnologyFilterKey, string> = { brand: "Marca", processor: "Procesador", ram: "RAM", storage: "Almacenamiento", os: "Sistema operativo", color: "Color", screenSize: "Tamaño", resolution: "Resolución", refreshRate: "Frecuencia" };
-const CONDITION_OPTIONS = ["Nuevo", "Usado - Excelente", "Usado - Bueno"];
+const CONDITIONS = ["Nuevo", "Usado - Excelente", "Usado - Bueno"];
+type ActiveFilter = TechnologyFilterKey | "condition";
+type FilterState = Partial<Record<ActiveFilter, string>>;
 
-type ActiveFilterKey = TechnologyFilterKey | "condition";
-type Filters = Partial<Record<ActiveFilterKey, string>>;
+const iconFor = (slug: string) => slug === "laptops" ? Laptop : slug === "monitores" ? Monitor : slug === "computadoras-escritorio" ? Cpu : Mouse;
 
 export default function TecnologiaPage() {
+  const [home, setHome] = useState<TechnologyHomeConfig>(defaultTechnologyHomeConfig);
   const [categories, setCategories] = useState<TechnologyCategory[]>([]);
   const [products, setProducts] = useState<TechnologyProduct[]>([]);
-  const [filterOptions, setFilterOptions] = useState<Record<TechnologyFilterKey, TechnologyFilterOption[]>>({ brand: [], processor: [], ram: [], storage: [], os: [], color: [], screenSize: [], resolution: [], refreshRate: [] });
+  const [catalogOptions, setCatalogOptions] = useState<Record<TechnologyFilterKey, TechnologyFilterOption[]>>({ brand: [], processor: [], ram: [], storage: [], os: [], color: [], screenSize: [], resolution: [], refreshRate: [] });
   const [categoryId, setCategoryId] = useState("all");
-  const [filters, setFilters] = useState<Filters>({});
+  const [filters, setFilters] = useState<FilterState>({});
   const [search, setSearch] = useState("");
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [sort, setSort] = useState("recent");
+  const [mobileFilters, setMobileFilters] = useState(false);
 
+  useEffect(() => subscribeTechnologyHomeConfig(setHome), []);
   useEffect(() => subscribeTechnologyCategories(setCategories), []);
   useEffect(() => subscribeTechnologyProducts(setProducts), []);
-  useEffect(() => {
-    const keys = Object.keys(LABELS) as TechnologyFilterKey[];
-    const unsubs = keys.map((key) => subscribeTechnologyFilterOptions(key, (items) => setFilterOptions((current) => ({ ...current, [key]: items }))));
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, []);
+  useEffect(() => { const keys = Object.keys(LABELS) as TechnologyFilterKey[]; const unsubs = keys.map((key) => subscribeTechnologyFilterOptions(key, (items) => setCatalogOptions((current) => ({ ...current, [key]: items })))); return () => unsubs.forEach((unsubscribe) => unsubscribe()); }, []);
 
-  const visibleCategories = useMemo(() => categories.filter((category) => category.visible).sort((a, b) => a.order - b.order), [categories]);
-  const selectedCategory = categoryId === "all" ? null : categories.find((category) => category.id === categoryId);
-  const activeFilterKeys: ActiveFilterKey[] = selectedCategory ? (FILTERS_BY_CATEGORY[selectedCategory.slug] || ["brand", "color"]) : ["brand", "condition"];
+  const visibleCategories = useMemo(() => categories.filter((item) => item.visible).sort((a, b) => a.order - b.order), [categories]);
+  const selected = categoryId === "all" ? null : categories.find((item) => item.id === categoryId);
+  const activeFilters: ActiveFilter[] = selected ? (FILTERS[selected.slug] || ["brand", "color"]) : ["brand", "condition"];
 
-  const optionValues = useMemo(() => {
-    const result = { ...filterOptions };
-    (Object.keys(LABELS) as TechnologyFilterKey[]).forEach((key) => {
-      const map = new Map(result[key].map((option) => [option.normalized, option.value]));
-      products.forEach((product) => {
-        const value = key === "brand" ? product.filterValues?.brand || product.brand : product.filterValues?.[key];
-        if (value) map.set(value.trim().toLowerCase(), value);
-      });
-      result[key] = Array.from(map.values()).map((value) => ({ key, value, normalized: value.trim().toLowerCase(), id: `${key}-${value}` }));
-    });
+  const options = useMemo(() => {
+    const result = { ...catalogOptions };
+    (Object.keys(LABELS) as TechnologyFilterKey[]).forEach((key) => { const map = new Map(result[key].map((item) => [item.normalized, item.value])); products.forEach((product) => { const value = key === "brand" ? product.filterValues?.brand || product.brand : product.filterValues?.[key]; if (value) map.set(value.trim().toLowerCase(), value); }); result[key] = [...map.entries()].map(([normalized, value]) => ({ id: `${key}-${normalized}`, key, value, normalized })); });
     return result;
-  }, [filterOptions, products]);
+  }, [catalogOptions, products]);
 
-  const filtered = useMemo(() => products.filter((product) => {
-    if (product.available === false) return false;
-    if (categoryId !== "all" && product.categoryId !== categoryId) return false;
-    if (filters.condition && product.condition !== filters.condition) return false;
-    for (const key of activeFilterKeys) {
-      if (key === "condition") continue;
-      const selected = filters[key];
-      if (!selected) continue;
-      const actual = key === "brand" ? product.filterValues?.brand || product.brand : product.filterValues?.[key];
-      if (!actual || actual.trim().toLowerCase() !== selected.trim().toLowerCase()) return false;
-    }
-    const text = `${product.name} ${product.brand} ${product.model} ${product.sku}`.toLowerCase();
-    return text.includes(search.toLowerCase().trim());
-  }), [products, categoryId, filters, search, activeFilterKeys]);
+  const filtered = useMemo(() => { const list = products.filter((product) => { if (product.available === false) return false; if (categoryId !== "all" && product.categoryId !== categoryId) return false; if (filters.condition && product.condition !== filters.condition) return false; for (const key of activeFilters) { if (key === "condition" || !filters[key]) continue; const actual = key === "brand" ? product.filterValues?.brand || product.brand : product.filterValues?.[key]; if (!actual || actual.toLowerCase() !== filters[key]!.toLowerCase()) return false; } const text = `${product.name} ${product.brand} ${product.model} ${product.sku}`.toLowerCase(); return text.includes(search.toLowerCase().trim()); }); return [...list].sort((a, b) => sort === "price-low" ? a.price - b.price : sort === "price-high" ? b.price - a.price : sort === "name" ? a.name.localeCompare(b.name) : 0); }, [products, categoryId, filters, search, activeFilters, sort]);
+  const setCategory = (id: string) => { setCategoryId(id); setFilters({}); };
+  const clear = () => setFilters({});
 
-  const clearFilters = () => setFilters({});
-  const setCategory = (id: string) => { setCategoryId(id); clearFilters(); };
+  return <main className="min-h-screen bg-[#f8f9fd] text-[#0e173f]"><Navbar /><div className="mx-auto max-w-[1440px] px-4 pb-12 sm:px-6 lg:px-8">
+    <nav className="flex items-center gap-2 py-4 text-xs text-slate-500"><Link href="/" className="hover:text-[#3e51e7]">⌂ Inicio</Link><ChevronRight size={13}/><Link href="/tecnologia" className="hover:text-[#3e51e7]">Tecnología</Link>{selected && <><ChevronRight size={13}/><span>{selected.name}</span></>}</nav>
 
-  return <main className="min-h-screen bg-[#111] text-white"><Navbar /><div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-    <header className="mb-8"><p className="text-xs font-black uppercase tracking-[0.35em] text-primary">SubliMod / Tecnología</p><h1 className="mt-2 text-4xl font-black uppercase tracking-tight sm:text-5xl">Tecnología</h1><p className="mt-3 max-w-2xl text-sm text-gray-400">Equipos disponibles, organizados por categoría y especificaciones importantes.</p></header>
-    <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4"><button onClick={() => setCategory("all")} className={`rounded-full px-4 py-2 text-xs font-black uppercase ${categoryId === "all" ? "bg-primary text-white" : "bg-white/5 text-gray-400"}`}>Todos</button>{visibleCategories.map((category) => <button key={category.id} onClick={() => setCategory(category.id || "")} className={`rounded-full px-4 py-2 text-xs font-black uppercase ${categoryId === category.id ? "bg-primary text-white" : "bg-white/5 text-gray-400"}`}>{category.name}</button>)}</div>
-    <div className="mt-6 flex gap-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre, marca o modelo..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-white outline-none focus:border-primary"/><button onClick={() => setMobileFiltersOpen((value) => !value)} className="rounded-xl bg-white/10 px-4 py-3 text-xs font-black uppercase lg:hidden">Filtros</button></div>
-    <div className="mt-6 grid gap-6 lg:grid-cols-[240px_1fr]">
-      <aside className={`${mobileFiltersOpen ? "block" : "hidden"} rounded-2xl border border-white/10 bg-white/[0.03] p-5 lg:block`}><div className="flex items-center justify-between"><h2 className="text-sm font-black uppercase">Filtros</h2><button onClick={clearFilters} className="text-[10px] font-bold text-primary">Limpiar</button></div><div className="mt-5 space-y-4">{activeFilterKeys.filter((key): key is TechnologyFilterKey => key !== "condition").map((key) => <label key={key} className="block text-xs font-bold uppercase text-gray-500">{LABELS[key]}<select value={filters[key] || ""} onChange={(e) => setFilters((current) => ({ ...current, [key]: e.target.value }))} className="mt-2 w-full rounded-xl bg-black/30 p-3 text-sm font-normal text-white"><option value="">Todos</option>{optionValues[key].map((option) => <option key={option.id} value={option.value}>{option.value}</option>)}</select></label>)}{(categoryId === "all" || activeFilterKeys.includes("condition")) && <label className="block text-xs font-bold uppercase text-gray-500">Estado<select value={filters.condition || ""} onChange={(e) => setFilters((current) => ({ ...current, condition: e.target.value }))} className="mt-2 w-full rounded-xl bg-black/30 p-3 text-sm font-normal text-white"><option value="">Todos</option>{CONDITION_OPTIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>}</div></aside>
-      <section><div className="mb-4 flex items-center justify-between"><p className="text-xs text-gray-500">{filtered.length} {filtered.length === 1 ? "producto" : "productos"}</p><p className="text-xs text-gray-500">Solo equipos disponibles</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((product) => <Link href={`/tecnologia/${product.id}`} key={product.id} className="group"><article className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-primary/50"><div className="relative aspect-[4/3] bg-black/30">{(product.coverImage || product.images?.[0]) ? <img src={product.coverImage || product.images[0]} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"/> : <div className="flex h-full items-center justify-center text-xs text-gray-600">Sin imagen</div>}<span className="absolute left-3 top-3 rounded-full bg-black/75 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.condition}</span></div><div className="p-5"><p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{categories.find((category) => category.id === product.categoryId)?.name || "Tecnología"}</p><h2 className="mt-2 font-black uppercase">{product.name}</h2><p className="mt-1 text-sm text-gray-400">{product.brand || product.filterValues?.brand}{product.model ? ` · ${product.model}` : ""}</p><p className="mt-4 text-xl font-black">{product.currency === "USD" ? "$" : "C$"}{Number(product.price).toLocaleString()}</p></div></article></Link>)}{filtered.length === 0 && <div className="rounded-2xl border border-dashed border-white/10 p-12 text-center text-sm text-gray-500 sm:col-span-2 xl:col-span-3">No hay productos que coincidan con los filtros seleccionados.</div>}</div></section>
+    <section className="relative overflow-hidden rounded-2xl bg-[#0e173f] shadow-[0_18px_45px_rgba(14,23,63,.18)]"><div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_30%,rgba(62,81,231,.75),transparent_35%),linear-gradient(105deg,#0e173f_0%,#15265c_48%,#3e51e7_100%)]"/><div className="relative grid min-h-[300px] items-stretch lg:grid-cols-[.8fr_1.2fr]"> <div className="z-10 flex flex-col justify-center px-7 py-9 sm:px-10 lg:px-12"><span className="mb-4 inline-flex w-fit items-center gap-2 rounded-full bg-[#3e51e7] px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-900/20"><Sparkles size={13}/> {home.eyebrow}</span><h1 className="max-w-xl text-4xl font-black leading-[.98] tracking-tight text-white sm:text-5xl lg:text-6xl">{home.title}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-blue-100 sm:text-base">{home.description}</p><div className="mt-6 flex flex-wrap gap-2"><span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[10px] font-bold text-white"><ShieldCheck size={14} className="text-[#74a0ff]"/> Equipos verificados</span><span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[10px] font-bold text-white"><BadgeCheck size={14} className="text-[#74a0ff]"/> Calidad garantizada</span><span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[10px] font-bold text-white"><Zap size={14} className="text-[#74a0ff]"/> Listos para rendir</span></div></div><div className="relative min-h-[230px] overflow-hidden lg:min-h-0">{home.imageUrl ? <img src={home.imageUrl} alt="Tecnología SubliMod" className="absolute inset-0 h-full w-full object-cover"/> : <div className="absolute inset-0 bg-[radial-gradient(circle_at_55%_55%,rgba(93,133,255,.9),transparent_22%),linear-gradient(135deg,#14255a,#5368ff)]"><div className="absolute right-8 top-1/2 h-36 w-64 -translate-y-1/2 rotate-[-4deg] rounded-xl border border-white/20 bg-gradient-to-br from-slate-300 to-slate-800 shadow-2xl"/><div className="absolute right-24 top-1/2 h-24 w-40 -translate-y-[42%] rotate-[-4deg] rounded-md bg-gradient-to-br from-[#202c61] to-[#050917]"/></div>}</div></div></section>
+
+    <div className="mt-5 grid gap-5 lg:grid-cols-[230px_1fr]">
+      <aside className={`${mobileFilters ? "block" : "hidden"} lg:block`}><div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><div className="px-2 pb-2 text-sm font-black">Categorías</div>{visibleCategories.map((category) => { const Icon = iconFor(category.slug); const count = products.filter((p) => p.available !== false && p.categoryId === category.id).length; return <button key={category.id} onClick={() => setCategory(category.id || "")} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-left text-xs font-bold transition ${categoryId === category.id ? "bg-[#3e51e7] text-white shadow-md shadow-blue-500/20" : "text-slate-700 hover:bg-slate-50"}`}><Icon size={15}/><span className="flex-1">{category.name}</span><span className={`rounded-full px-2 py-0.5 text-[10px] ${categoryId === category.id ? "bg-white/20" : "bg-slate-100 text-slate-500"}`}>{count}</span></button>})}</div><div className="mt-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-xs font-black uppercase"><Filter size={14} className="text-[#3e51e7]"/> Filtros rápidos</h2><button onClick={clear} className="text-[10px] font-bold text-[#3e51e7]">Limpiar</button></div><div className="mt-4 space-y-3">{activeFilters.filter((key): key is TechnologyFilterKey => key !== "condition").map((key) => <label key={key} className="block text-[10px] font-black uppercase text-slate-500">{LABELS[key]}<select value={filters[key] || ""} onChange={(e) => setFilters((current) => ({ ...current, [key]: e.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#3e51e7]"><option value="">Todos</option>{options[key].map((option) => <option key={option.id} value={option.value}>{option.value}</option>)}</select></label>)}{categoryId === "all" && <label className="block text-[10px] font-black uppercase text-slate-500">Estado<select value={filters.condition || ""} onChange={(e) => setFilters((current) => ({ ...current, condition: e.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700"><option value="">Todos</option>{CONDITIONS.map((condition) => <option key={condition}>{condition}</option>)}</select></label>}</div></div></aside>
+
+      <section className="min-w-0"><div className="mb-3 flex flex-wrap items-center gap-3"><div><h2 className="text-xl font-black sm:text-2xl">{selected?.name || "Tecnología"}</h2><p className="text-xs text-slate-500">{filtered.length} equipos disponibles</p></div><div className="ml-auto flex items-center gap-2"><button onClick={() => setMobileFilters((v) => !v)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold lg:hidden"><Filter size={14}/> Filtros</button><div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white sm:flex"><button onClick={() => setView("grid")} className={`p-2.5 ${view === "grid" ? "bg-[#3e51e7] text-white" : "text-slate-500"}`}><Grid2X2 size={16}/></button><button onClick={() => setView("list")} className={`p-2.5 ${view === "list" ? "bg-[#3e51e7] text-white" : "text-slate-500"}`}><List size={16}/></button></div><select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="recent">Más recientes</option><option value="price-low">Precio menor</option><option value="price-high">Precio mayor</option><option value="name">Nombre A-Z</option></select></div></div><div className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"><Search size={16} className="text-slate-400"/><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar productos, marca o modelo..." className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"/></div>
+
+      <div className={view === "grid" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-4" : "space-y-3"}>{filtered.map((product) => { const image = product.coverImage || product.images?.[0]; const category = categories.find((item) => item.id === product.categoryId); const specs = [product.filterValues?.processor, product.filterValues?.ram, product.filterValues?.storage].filter(Boolean).slice(0,3); return <Link href={`/tecnologia/${product.id}`} key={product.id} className="group"><article className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#3e51e7]/40 hover:shadow-lg ${view === "list" ? "flex" : ""}`}><div className={`relative bg-slate-100 ${view === "list" ? "h-28 w-36 shrink-0" : "aspect-[1.35/1]"}`}>{image ? <img src={image} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"/> : <div className="flex h-full items-center justify-center text-xs text-slate-400">Sin imagen</div>}<span className="absolute left-2 top-2 rounded-full bg-[#3e51e7] px-2.5 py-1 text-[9px] font-black text-white">{product.condition === "Nuevo" ? "Nuevo" : "Verificada"}</span><span className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-slate-500 shadow"><Heart size={13}/></span></div><div className="min-w-0 flex-1 p-3"><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{category?.name || "Tecnología"}</p><h3 className="mt-1 truncate text-sm font-black text-[#0e173f]">{product.name}</h3><p className="mt-1 text-[10px] font-semibold text-slate-500">{product.brand || product.filterValues?.brand}{product.model ? ` · ${product.model}` : ""}</p>{specs.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{specs.map((spec) => <span key={spec} className="rounded-md bg-slate-50 px-1.5 py-1 text-[9px] font-semibold text-slate-600">{spec}</span>)}</div>}<div className="mt-3 flex items-end justify-between gap-2"><span className="text-lg font-black text-[#3e51e7]">{product.currency === "USD" ? "$" : "C$"}{Number(product.price).toLocaleString()}</span><span className="inline-flex items-center gap-1 rounded-lg border border-[#3e51e7]/30 px-2.5 py-1.5 text-[9px] font-black text-[#3e51e7]">Ver detalles <ChevronRight size={12}/></span></div></div></article></Link>; })}</div>{filtered.length === 0 && <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">No hay productos disponibles con los filtros seleccionados.</div>}
+      </section>
     </div>
+
+    <section className="mt-6 flex items-center justify-between gap-4 rounded-xl bg-gradient-to-r from-[#e8edff] via-[#f4f6ff] to-white px-5 py-4"><div className="flex items-center gap-3"><div className="rounded-full bg-[#3e51e7]/10 p-2.5 text-[#3e51e7]"><Zap size={20}/></div><div><p className="text-sm font-black text-[#17316d]">Próximamente más tecnología en camino</p><p className="text-[10px] text-slate-500">Seguimos aumentando nuestro catálogo para ofrecerte lo mejor.</p></div></div><Sparkles className="hidden text-[#6f8cff] sm:block"/></section>
   </div><Footer /></main>;
 }
