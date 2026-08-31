@@ -22,7 +22,8 @@ const emptyCategory: Omit<TechnologyCategory, "id"> = {
   name: "", slug: "", description: "", visible: true, order: 0, specificationFields: [],
 };
 
-const withoutId = <T extends { id?: string }>(value: T): Omit<T, "id"> => {
+// Trailing comma disambiguates the generic type parameter from JSX in .tsx files.
+const withoutId = <T extends { id?: string },>(value: T): Omit<T, "id"> => {
   const { id: _id, ...rest } = value;
   return rest;
 };
