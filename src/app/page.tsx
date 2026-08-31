@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import CategoryGrid from "@/components/CategoryGrid";
-import TechnologyShowcase from "@/components/TechnologyShowcase";
 import Footer from "@/components/Footer";
 import QuoteCartDrawer from "@/components/QuoteCartDrawer";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -57,9 +56,6 @@ export default function Home() {
               <a href="#catalogo" className="group inline-flex items-center gap-3 rounded-full bg-primary px-6 py-3.5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/15 transition-all hover:-translate-y-0.5 hover:bg-primary-dark active:scale-95">
                 Ver productos <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
               </a>
-              <a href="#tecnologia-home" className="inline-flex items-center gap-3 rounded-full border border-[#17263F]/10 bg-white/80 px-6 py-3.5 text-xs font-black uppercase tracking-widest text-[#17263F] transition-all hover:border-primary/30 hover:bg-white">
-                Conocer tecnología
-              </a>
             </div>
           </div>
 
@@ -86,7 +82,6 @@ export default function Home() {
       </section>
 
       <CategoryGrid />
-      <TechnologyShowcase />
       <QuoteCartDrawer whatsappNumber="86153695" />
       <Footer />
     </main>
