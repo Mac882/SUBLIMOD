@@ -2,6 +2,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverT
 import { db } from "@/lib/firebase";
 import type { TechnologyCategory, TechnologyProduct } from "./types";
 import { ensurePredefinedTechnologyCategories } from "./predefined";
+export { createTechnologyFilterOption, subscribeTechnologyFilterOptions, updateTechnologyFilterOption } from "./filterCatalog";
 
 export const technologyCategoriesCollection = "tecnologia_categorias";
 export const technologyProductsCollection = "tecnologia_productos";
@@ -10,17 +11,14 @@ export const subscribeTechnologyCategories = (onChange: (items: TechnologyCatego
   void ensurePredefinedTechnologyCategories().catch((error) => {
     console.error("No se pudieron inicializar las categorías predefinidas de tecnología:", error);
   });
-
-  return onSnapshot(
-    query(collection(db, technologyCategoriesCollection), orderBy("order", "asc")),
-    (snapshot) => onChange(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<TechnologyCategory, "id">) }))),
+  return onSnapshot(query(collection(db, technologyCategoriesCollection), orderBy("order", "asc")), (snapshot) =>
+    onChange(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<TechnologyCategory, "id">) }))),
   );
 };
 
 export const subscribeTechnologyProducts = (onChange: (items: TechnologyProduct[]) => void) =>
-  onSnapshot(
-    query(collection(db, technologyProductsCollection), orderBy("createdAt", "desc")),
-    (snapshot) => onChange(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<TechnologyProduct, "id">) }))),
+  onSnapshot(query(collection(db, technologyProductsCollection), orderBy("createdAt", "desc")), (snapshot) =>
+    onChange(snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as Omit<TechnologyProduct, "id">) }))),
   );
 
 export const createTechnologyCategory = async (category: Omit<TechnologyCategory, "id">) =>
