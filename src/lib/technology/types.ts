@@ -31,7 +31,7 @@ export type TechnologyProduct = {
   previousPrice: number;
   available: boolean;
   availability: "Disponible" | "Reservada" | "Vendida";
-  condition: "Nuevo" | "Como nuevo" | "Usado - Excelente" | "Usado - Muy bueno" | "Reacondicionado";
+  condition: "Nuevo" | "Usado - Excelente" | "Usado - Bueno";
   physicalCondition: string;
   shortDescription: string;
   description: string;
