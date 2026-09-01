@@ -29,6 +29,7 @@ export default function TecnologiaProductPage() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [zoomImage, setZoomImage] = useState<number | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
 
   useEffect(() => {
     if (!id) return;
@@ -67,29 +68,50 @@ export default function TecnologiaProductPage() {
     setActiveImage(index);
     setZoomImage(null);
     setZoomScale(1);
+    setZoomOrigin({ x: 50, y: 50 });
     setGalleryOpen(true);
+  };
+
+  const closeZoom = () => {
+    setZoomImage(null);
+    setZoomScale(1);
+    setZoomOrigin({ x: 50, y: 50 });
   };
 
   const openZoom = (index: number) => {
     setActiveImage(index);
     setZoomImage(index);
-    setZoomScale(1);
+    setZoomScale(1.8);
+    setZoomOrigin({ x: 50, y: 50 });
+  };
+
+  const handleZoomPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (zoomImage === null) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+    setZoomOrigin({ x, y });
+  };
+
+  const handleZoomWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (zoomImage === null) return;
+    event.preventDefault();
+    setZoomScale((value) => Math.min(3, Math.max(1.4, value + (event.deltaY < 0 ? 0.15 : -0.15))));
   };
 
   useEffect(() => {
-    const modalOpen = galleryOpen || zoomImage !== null;
+    const modalOpen = galleryOpen;
     if (!modalOpen) return;
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (zoomImage !== null) {
-          setZoomImage(null);
-          setZoomScale(1);
+          closeZoom();
         } else {
           setGalleryOpen(false);
         }
       }
-      if (galleryOpen && zoomImage === null && images.length > 1) {
+      if (images.length > 1 && zoomImage === null) {
         if (event.key === "ArrowRight") setActiveImage((value) => (value + 1) % images.length);
         if (event.key === "ArrowLeft") setActiveImage((value) => (value - 1 + images.length) % images.length);
       }
@@ -145,27 +167,37 @@ export default function TecnologiaProductPage() {
       </div>
     </div>
 
-    {galleryOpen && zoomImage === null && <div className="fixed inset-0 z-[1000] bg-white sm:bg-black/70 sm:p-4" role="dialog" aria-modal="true" aria-label={`Galería de ${product.name}`}>
+    {galleryOpen && <div className="fixed inset-0 z-[1000] bg-white sm:bg-black/70 sm:p-4" role="dialog" aria-modal="true" aria-label={`Galería de ${product.name}`}>
       <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-hidden bg-white sm:h-[calc(100vh-2rem)] sm:rounded-2xl sm:shadow-2xl">
-        <header className="flex shrink-0 items-center justify-between border-b border-[#e8edf5] px-5 py-4 sm:px-6"><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Galería de productos</p><h2 className="mt-1 text-lg font-black text-[#17284d] sm:text-xl">{product.name}</h2></div><button type="button" onClick={() => setGalleryOpen(false)} className="grid h-10 w-10 place-items-center rounded-full text-3xl font-light text-[#52627d] transition hover:bg-[#f1f4f9]" aria-label="Cerrar galería">×</button></header>
+        <header className="flex shrink-0 items-center justify-between border-b border-[#e8edf5] px-5 py-4 sm:px-6"><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-[#3158ee]">Galería de productos</p><h2 className="mt-1 text-lg font-black text-[#17284d] sm:text-xl">{product.name}</h2></div><button type="button" onClick={() => { closeZoom(); setGalleryOpen(false); }} className="grid h-10 w-10 place-items-center rounded-full text-3xl font-light text-[#52627d] transition hover:bg-[#f1f4f9]" aria-label="Cerrar galería">×</button></header>
+
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="md:hidden"><div className="divide-y divide-[#e7ebf2] bg-[#f5f6f8]">{images.map((image, index) => <button type="button" key={`${image}-${index}`} onClick={() => openZoom(index)} className="group relative block w-full bg-white text-left" aria-label={`Ampliar imagen ${index + 1}`}><img src={image} alt={`${product.name} imagen ${index + 1}`} className="block h-auto max-h-[78vh] w-full object-contain" /><span className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-[#111827]/85 px-4 py-2 text-xs font-bold text-white opacity-90 shadow-lg"><ZoomIcon /> Ampliar</span></button>)}</div></div>
+          <div className="md:hidden">
+            <div className="divide-y divide-[#e7ebf2] bg-[#f5f6f8]">{images.map((image, index) => <div key={`${image}-${index}`} className="relative w-full bg-white">
+              <button type="button" onClick={() => zoomImage === index ? closeZoom() : openZoom(index)} className={`group relative block w-full overflow-hidden text-left ${zoomImage === index ? "cursor-zoom-out" : "cursor-zoom-in"}`} aria-label={zoomImage === index ? `Cerrar zoom de imagen ${index + 1}` : `Ampliar imagen ${index + 1}`}>
+                <div className="relative overflow-hidden bg-white" onPointerMove={handleZoomPointerMove} onWheel={handleZoomWheel}>
+                  <img src={image} alt={`${product.name} imagen ${index + 1}`} className="block h-auto max-h-[78vh] w-full object-contain transition-transform duration-150" style={{ transform: zoomImage === index ? `scale(${zoomScale})` : "scale(1)", transformOrigin: zoomImage === index ? `${zoomOrigin.x}% ${zoomOrigin.y}%` : "center center" }} />
+                  <span className={`absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-[#111827]/85 px-4 py-2 text-xs font-bold text-white shadow-lg transition ${zoomImage === index ? "opacity-0" : "opacity-90"}`}><ZoomIcon /> Ampliar</span>
+                </div>
+              </button>
+            </div>)}</div>
+          </div>
+
           <div className="hidden h-full min-h-0 md:grid md:grid-cols-[minmax(0,1fr)_180px]">
             <div className="relative flex min-h-0 items-center justify-center overflow-hidden bg-[#f4f5f7] p-5 lg:p-8">
-              <button type="button" onClick={() => openZoom(activeImage)} className="group relative flex max-h-full max-w-full cursor-zoom-in items-center justify-center" aria-label="Hacer zoom en la imagen actual"><img src={currentImage} alt={`${product.name} ampliado`} className="max-h-[calc(100vh-9rem)] max-w-full object-contain transition duration-200 group-hover:scale-[1.01]" /><span className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100"><span className="inline-flex items-center gap-2 rounded-full bg-black/75 px-4 py-2.5 text-sm font-bold text-white shadow-xl"><ZoomIcon /> Hacer zoom</span></span></button>
-              {images.length > 1 && <><button type="button" onClick={() => setActiveImage((value) => (value - 1 + images.length) % images.length)} className="absolute left-5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-2xl text-[#17284d] shadow-lg" aria-label="Imagen anterior">‹</button><button type="button" onClick={() => setActiveImage((value) => (value + 1) % images.length)} className="absolute right-5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-2xl text-[#17284d] shadow-lg" aria-label="Siguiente imagen">›</button></>}
-              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/65 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white">{activeImage + 1} / {images.length}</span>
+              <div className={`group relative flex max-h-full max-w-full items-center justify-center overflow-hidden ${zoomImage === activeImage ? "cursor-zoom-out" : "cursor-zoom-in"}`} onPointerMove={handleZoomPointerMove} onWheel={handleZoomWheel}>
+                <button type="button" onClick={() => zoomImage === activeImage ? closeZoom() : openZoom(activeImage)} className="relative flex max-h-full max-w-full items-center justify-center" aria-label={zoomImage === activeImage ? "Cerrar zoom" : "Hacer zoom en la imagen actual"}>
+                  <img src={currentImage} alt={`${product.name} ampliado`} className="max-h-[calc(100vh-9rem)] max-w-full object-contain transition-transform duration-150" style={{ transform: zoomImage === activeImage ? `scale(${zoomScale})` : "scale(1)", transformOrigin: zoomImage === activeImage ? `${zoomOrigin.x}% ${zoomOrigin.y}%` : "center center" }} />
+                  <span className={`pointer-events-none absolute inset-0 grid place-items-center transition ${zoomImage === activeImage ? "opacity-0" : "opacity-100 group-hover:opacity-100"}`}><span className="inline-flex items-center gap-2 rounded-full bg-black/75 px-4 py-2.5 text-sm font-bold text-white shadow-xl"><ZoomIcon /> {zoomImage === activeImage ? "Mover para explorar" : "Hacer zoom"}</span></span>
+                </button>
+              </div>
+              {images.length > 1 && zoomImage === null && <><button type="button" onClick={() => setActiveImage((value) => (value - 1 + images.length) % images.length)} className="absolute left-5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-2xl text-[#17284d] shadow-lg" aria-label="Imagen anterior">‹</button><button type="button" onClick={() => setActiveImage((value) => (value + 1) % images.length)} className="absolute right-5 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-2xl text-[#17284d] shadow-lg" aria-label="Siguiente imagen">›</button></>}
+              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/65 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white">{activeImage + 1} / {images.length}{zoomImage === activeImage ? ` · Zoom ${Math.round(zoomScale * 100)}%` : ""}</span>
             </div>
-            <aside className="overflow-y-auto border-l border-[#e3e7ed] bg-white p-4"><p className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#75839b]">Miniaturas</p><div className="grid grid-cols-2 gap-3">{images.map((image, index) => <button type="button" key={`${image}-${index}`} onClick={() => setActiveImage(index)} className={`overflow-hidden rounded-xl border-2 bg-white transition ${activeImage === index ? "border-[#3158ee] shadow-md" : "border-[#e2e6ec] hover:border-[#9aa8bd]"}`} aria-label={`Seleccionar imagen ${index + 1}`}><img src={image} alt="" className="aspect-square w-full object-contain p-1.5" /></button>)}</div></aside>
+            <aside className="overflow-y-auto border-l border-[#e3e7ed] bg-white p-4"><p className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-[#75839b]">Miniaturas</p><div className="grid grid-cols-2 gap-3">{images.map((image, index) => <button type="button" key={`${image}-${index}`} onClick={() => { closeZoom(); setActiveImage(index); }} className={`overflow-hidden rounded-xl border-2 bg-white transition ${activeImage === index ? "border-[#3158ee] shadow-md" : "border-[#e2e6ec] hover:border-[#9aa8bd]"}`} aria-label={`Seleccionar imagen ${index + 1}`}><img src={image} alt="" className="aspect-square w-full object-contain p-1.5" /></button>)}</div></aside>
           </div>
         </div>
       </div>
-    </div>}
-
-    {zoomImage !== null && images[zoomImage] && <div className="fixed inset-0 z-[1100] flex flex-col bg-[#07112a]/95 p-3 backdrop-blur-md sm:p-5" role="dialog" aria-modal="true" aria-label="Zoom de imagen">
-      <div className="flex shrink-0 items-center justify-between"><span className="rounded-full bg-white/10 px-4 py-2 text-[10px] font-black tracking-widest text-white">{zoomImage + 1} / {images.length} · Zoom {Math.round(zoomScale * 100)}%</span><button type="button" onClick={() => { setZoomImage(null); setZoomScale(1); }} className="grid h-11 w-11 place-items-center rounded-full bg-white text-2xl font-bold text-[#17284d] shadow-xl" aria-label="Cerrar zoom">×</button></div>
-      <div className="min-h-0 flex-1 overflow-auto py-3 sm:py-5"><div className="flex min-h-full min-w-full items-center justify-center"><img src={images[zoomImage]} alt={`${product.name} imagen ${zoomImage + 1} ampliada`} className="max-h-[calc(100vh-9rem)] max-w-[calc(100vw-2rem)] rounded-xl object-contain shadow-2xl transition-transform duration-200" style={{ transform: `scale(${zoomScale})`, transformOrigin: "center center" }} /></div></div>
-      <div className="flex shrink-0 justify-center gap-2 pt-2"><button type="button" onClick={() => setZoomScale((value) => Math.max(1, value - 0.25))} className="grid h-11 w-11 place-items-center rounded-full bg-white text-xl font-bold text-[#17284d] shadow-lg" aria-label="Reducir zoom">−</button><button type="button" onClick={() => setZoomScale((value) => Math.min(3, value + 0.25))} className="grid h-11 w-11 place-items-center rounded-full bg-white text-xl font-bold text-[#17284d] shadow-lg" aria-label="Aumentar zoom">+</button><button type="button" onClick={() => setZoomScale(1)} className="rounded-full bg-white px-5 py-2 text-xs font-black uppercase tracking-widest text-[#17284d] shadow-lg">Restablecer</button></div>
     </div>}
 
     <Footer />
