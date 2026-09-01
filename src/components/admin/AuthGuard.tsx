@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { browserSessionPersistence, onAuthStateChanged, setPersistence, signOut } from "firebase/auth";
 import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -82,6 +82,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         setLoading(false);
         resetIdleTimer();
       }
+    });
+
+    // Fuerza el panel a usar sesión de pestaña/navegador incluso para una
+    // sesión que haya sido creada anteriormente con persistencia local.
+    void setPersistence(auth, browserSessionPersistence).catch((error) => {
+      console.error("No se pudo establecer la persistencia de sesión", error);
     });
 
     const activityEvents = ["pointerdown", "keydown", "scroll", "touchstart"];
