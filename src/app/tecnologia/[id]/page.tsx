@@ -100,16 +100,12 @@ export default function TecnologiaProductPage() {
   };
 
   useEffect(() => {
-    const modalOpen = galleryOpen;
-    if (!modalOpen) return;
+    if (!galleryOpen) return;
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (zoomImage !== null) {
-          closeZoom();
-        } else {
-          setGalleryOpen(false);
-        }
+        if (zoomImage !== null) closeZoom();
+        else setGalleryOpen(false);
       }
       if (images.length > 1 && zoomImage === null) {
         if (event.key === "ArrowRight") setActiveImage((value) => (value + 1) % images.length);
@@ -173,14 +169,11 @@ export default function TecnologiaProductPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="md:hidden">
-            <div className="divide-y divide-[#e7ebf2] bg-[#f5f6f8]">{images.map((image, index) => <div key={`${image}-${index}`} className="relative w-full bg-white">
-              <button type="button" onClick={() => zoomImage === index ? closeZoom() : openZoom(index)} className={`group relative block w-full overflow-hidden text-left ${zoomImage === index ? "cursor-zoom-out" : "cursor-zoom-in"}`} aria-label={zoomImage === index ? `Cerrar zoom de imagen ${index + 1}` : `Ampliar imagen ${index + 1}`}>
-                <div className="relative overflow-hidden bg-white" onPointerMove={handleZoomPointerMove} onWheel={handleZoomWheel}>
-                  <img src={image} alt={`${product.name} imagen ${index + 1}`} className="block h-auto max-h-[78vh] w-full object-contain transition-transform duration-150" style={{ transform: zoomImage === index ? `scale(${zoomScale})` : "scale(1)", transformOrigin: zoomImage === index ? `${zoomOrigin.x}% ${zoomOrigin.y}%` : "center center" }} />
-                  <span className={`absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-[#111827]/85 px-4 py-2 text-xs font-bold text-white shadow-lg transition ${zoomImage === index ? "opacity-0" : "opacity-90"}`}><ZoomIcon /> Ampliar</span>
-                </div>
-              </button>
-            </div>)}</div>
+            <div className="divide-y divide-[#e7ebf2] bg-[#f5f6f8]">
+              {images.map((image, index) => <div key={`${image}-${index}`} className="w-full bg-white">
+                <img src={image} alt={`${product.name} imagen ${index + 1}`} className="block h-auto w-full object-contain" />
+              </div>)}
+            </div>
           </div>
 
           <div className="hidden h-full min-h-0 md:grid md:grid-cols-[minmax(0,1fr)_180px]">
