@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { browserSessionPersistence, setPersistence, signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Loader2 } from "lucide-react";
 
@@ -17,9 +17,13 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/admin"); // Si entra bien, lo manda al panel
-    } catch (err: any) {
+      // El panel administrativo usa sesión de navegador, no persistencia local.
+      // Al cerrar el navegador, Firebase elimina la sesión de este dispositivo.
+      await setPersistence(auth, browserSessionPersistence);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      router.replace("/admin");
+    } catch (err) {
+      console.error("Error de autenticación", err);
       setError("Credenciales incorrectas. Intenta de nuevo.");
       setLoading(false);
     }
@@ -41,14 +45,7 @@ export default function LoginPage() {
             <label className="text-[10px] font-black text-gray-500 uppercase ml-2">Email</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-              <input 
-                type="email" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 pl-12 text-white outline-none focus:border-primary transition-all"
-                placeholder="admin@sublimod.com"
-              />
+              <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 pl-12 text-white outline-none focus:border-primary transition-all" placeholder="admin@sublimod.com" />
             </div>
           </div>
 
@@ -56,27 +53,18 @@ export default function LoginPage() {
             <label className="text-[10px] font-black text-gray-500 uppercase ml-2">Contraseña</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-              <input 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 pl-12 text-white outline-none focus:border-primary transition-all"
-                placeholder="••••••••"
-              />
+              <input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 pl-12 text-white outline-none focus:border-primary transition-all" placeholder="••••••••" />
             </div>
           </div>
 
           {error && <p className="text-red-500 text-[10px] font-black uppercase text-center">{error}</p>}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-primary hover:bg-primary-dark text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3"
-          >
+          <button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary-dark text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3">
             {loading ? <Loader2 className="animate-spin" /> : "Entrar al Sistema"}
           </button>
         </form>
+
+        <p className="text-center text-[10px] leading-5 text-gray-600 font-semibold">Por seguridad, la sesión administrativa se mantiene solo durante la sesión del navegador.</p>
       </div>
     </main>
   );
