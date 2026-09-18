@@ -118,7 +118,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
-  const handleSubmit = async () =>
+  const handleSubmit = async () => {
     if (!productName.trim() || !categoryId || images.length === 0) return alert("Faltan datos obligatorios (Nombre, Categoría e Imagen).");
     setIsUploading(true);
     try {
