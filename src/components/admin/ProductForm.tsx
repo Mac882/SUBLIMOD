@@ -18,6 +18,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const [variantsEnabled, setVariantsEnabled] = useState(false);
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<ProductVariantCombination[]>([]);
+  const [variantOptionFiles, setVariantOptionFiles] = useState<Record<string, File>>({});
   const [showInSituCat, setShowInSituCat] = useState(false), [newCatName, setNewCatName] = useState(""), [showInSituAttr, setShowInSituAttr] = useState(false), [newAttrName, setNewAttrName] = useState("");
 
   useEffect(() => onSnapshot(collection(db, "categorias"), snap => setCategories(snap.docs.map(d => ({ id: d.id, nombre: (d.data() as any).nombre })) )), []);
@@ -39,6 +40,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantsEnabled(false);
     setVariantGroups([]);
     setVariantCombinations([]);
+    setVariantOptionFiles({});
     setPriceMatrix([{ min: 1, max: 12, price: 0 }]);
   }, [productToEdit]);
 
@@ -55,6 +57,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantsEnabled(Boolean(productToEdit.variantes?.habilitado));
     setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos : []);
     setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
+    setVariantOptionFiles({});
     setPriceMatrix(productToEdit.escalasPrecios || [{ min: 1, max: 12, price: 0 }]);
     const selected: Record<string, string[]> = {};
     if (Array.isArray(productToEdit.atributos)) productToEdit.atributos.forEach((a: any) => { if (a.atributoId) selected[a.atributoId] = a.valores || []; });
@@ -86,9 +89,24 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   };
   const updateVariantOption = (groupId: string, optionId: string, patch: Partial<ProductVariantOption>) =>
     setVariantGroups(prev => prev.map(group => group.id === groupId ? { ...group, opciones: group.opciones.map(option => option.id === optionId ? { ...option, ...patch } : option) } : group));
+  const handleVariantOptionImage = async (groupId: string, optionId: string, file?: File) => {
+    if (!file) return;
+    try {
+      setIsCompressing(true);
+      const compressed = await compressImage(file);
+      setVariantOptionFiles(prev => ({ ...prev, [optionId]: compressed as File }));
+      updateVariantOption(groupId, optionId, { imagenUrl: URL.createObjectURL(compressed) });
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo preparar la imagen de la variante.");
+    } finally {
+      setIsCompressing(false);
+    }
+  };
   const removeVariantOption = (groupId: string, optionId: string) => {
     setVariantGroups(prev => prev.map(group => group.id === groupId ? { ...group, opciones: group.opciones.filter(option => option.id !== optionId) } : group));
     setVariantCombinations(prev => prev.filter(combo => combo.opciones[groupId] !== optionId));
+    setVariantOptionFiles(prev => { const next = { ...prev }; delete next[optionId]; return next; });
   };
   const generateVariantCombinations = () => {
     const validGroups = variantGroups.filter(group => group.opciones.length > 0 && group.opciones.some(option => option.nombre.trim()));
@@ -125,13 +143,21 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       const uploadedUrls: string[] = [];
       for (const img of images) { if (img.file) { const storageRef = ref(storage, `productos/${Date.now()}_${img.file.name}`); uploadedUrls.push(await getDownloadURL((await uploadBytes(storageRef, img.file)).ref)); } else uploadedUrls.push(img.url); }
       const atributos = Object.entries(selectedOptions).filter(([, vals]) => vals.length).map(([atributoId, valores]) => ({ atributoId, valores }));
-      const variantes: ProductVariantsConfig = {
-        habilitado: variantsEnabled && variantGroups.length > 0 && variantCombinations.length > 0,
-        grupos: variantGroups.map(group => ({
-          ...group,
-          nombre: group.nombre.trim(),
-          opciones: group.opciones.map(option => ({ ...option, nombre: option.nombre.trim() })),
+      const preparedGroups = await Promise.all(variantGroups.map(async group => ({
+        ...group,
+        nombre: group.nombre.trim(),
+        opciones: await Promise.all(group.opciones.map(async option => {
+          const file = variantOptionFiles[option.id];
+          if (!file) return { ...option, nombre: option.nombre.trim() };
+          const storageRef = ref(storage, "productos/variantes/" + Date.now() + "_" + file.name);
+          const upload = await uploadBytes(storageRef, file);
+          const imagenUrl = await getDownloadURL(upload.ref);
+          return { ...option, nombre: option.nombre.trim(), imagenUrl };
         })),
+      })));
+      const variantes: ProductVariantsConfig = {
+        habilitado: variantsEnabled && preparedGroups.length > 0 && variantCombinations.length > 0,
+        grupos: preparedGroups,
         combinaciones: variantCombinations,
       };
       const data = { nombre: productName.trim(), descripcion: description.trim(), categoriaId: categoryId, categoria: category, imagenUrl: uploadedUrls[0], imagenes: uploadedUrls, atributos, colores: colors, variantes, escalasPrecios: priceMatrix, updatedAt: serverTimestamp() };
@@ -163,6 +189,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
             <div className="space-y-2">
               {group.opciones.map(option => <div key={option.id} className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
                 {group.tipo === "color" && <input type="color" value={option.hex || "#2E8982"} onChange={e => updateVariantOption(group.id, option.id, { hex: e.target.value })} />}
+                <label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
                 {group.tipo !== "color" && <span className="w-8" />}
                 <input value={option.nombre} onChange={e => updateVariantOption(group.id, option.id, { nombre: e.target.value })} className="bg-black/30 p-2.5 rounded-lg text-white text-sm" placeholder="Nombre de opción" />
                 <button type="button" onClick={() => removeVariantOption(group.id, option.id)} className="text-red-500 p-2"><X size={15}/></button>
