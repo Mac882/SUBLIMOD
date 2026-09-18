@@ -36,6 +36,9 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setImages([]);
     setSelectedOptions({});
     setColors([]);
+    setVariantsEnabled(false);
+    setVariantGroups([]);
+    setVariantCombinations([]);
     setPriceMatrix([{ min: 1, max: 12, price: 0 }]);
   }, [productToEdit]);
 
@@ -49,6 +52,9 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setCategoryId(foundCategory?.id || productToEdit.categoriaId || "");
     setCategory(foundCategory?.nombre || productToEdit.categoria || "");
     setColors(productToEdit.colores || []);
+    setVariantsEnabled(Boolean(productToEdit.variantes?.habilitado));
+    setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos : []);
+    setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
     setPriceMatrix(productToEdit.escalasPrecios || [{ min: 1, max: 12, price: 0 }]);
     const selected: Record<string, string[]> = {};
     if (Array.isArray(productToEdit.atributos)) productToEdit.atributos.forEach((a: any) => { if (a.atributoId) selected[a.atributoId] = a.valores || []; });
