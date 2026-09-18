@@ -8,6 +8,7 @@ import {
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCartStore } from "@/store/useCartStore";
+import { ProductVariantCombination, ProductVariantGroup } from "@/types/productVariants";
 
 interface ProductDetailModalProps { product: any; onClose: () => void; }
 
@@ -37,6 +38,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [attributeDefinitions, setAttributeDefinitions] = useState<any[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState<any>(null);
+  const [selectedVariantOptions, setSelectedVariantOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const [addedToQuote, setAddedToQuote] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -104,9 +106,26 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     return escala ? Number(escala.price) || 0 : Number(product.escalasPrecios[product.escalasPrecios.length - 1].price) || 0;
   }, [quantity, product.escalasPrecios]);
 
-  const totalPrice = unitPrice * quantity;
+  const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
+  const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
+  const variantCombinations = useMemo<ProductVariantCombination[]>(() => Array.isArray(variantConfig?.combinaciones) ? variantConfig.combinaciones.filter((combo: ProductVariantCombination) => combo.activo !== false) : [], [variantConfig]);
+  const selectedCombination = useMemo(() => {
+    if (!variantGroups.length || !variantCombinations.length) return null;
+    return variantCombinations.find(combo => variantGroups.every(group => selectedVariantOptions[group.id] && combo.opciones[group.id] === selectedVariantOptions[group.id])) || null;
+  }, [variantGroups, variantCombinations, selectedVariantOptions]);
+  const variantPrice = selectedCombination?.precio != null ? Number(selectedCombination.precio) : unitPrice;
+  const totalPrice = variantPrice * quantity;
+  useEffect(() => {
+    if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
+    const defaults: Record<string, string> = {};
+    variantGroups.forEach(group => { if (group.requerido !== false && group.opciones.length) defaults[group.id] = group.opciones[0].id; });
+    setSelectedVariantOptions(defaults);
+  }, [variantGroups]);
+
+  const getSelectedVariantLines = () => variantGroups.map(group => { const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]); return option ? `• *${group.nombre}:* ${option.nombre}` : null; }).filter(Boolean).join("\n");
 
   const handleDirectOrder = () => {
+    if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
@@ -115,7 +134,9 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   };
 
   const handleAddToQuote = () => {
-    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: product.imagenUrl, atributos: selectedAttributes, color: selectedColor, cantidad: quantity, precioUnitario: unitPrice, total: totalPrice });
+    if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
+    const variantAttributes = { ...selectedAttributes, ...Object.fromEntries(variantGroups.map(group => { const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]); return option ? [group.nombre, option.nombre] : null; }).filter(Boolean) as [string, string][]) };
+    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
   };
@@ -138,7 +159,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
             <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
-              {productAttributes.map((attribute) => <div key={attribute.atributoId} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{attribute.definition?.nombreAtributo || "Atributo"}</label><div className="flex flex-wrap gap-2">{attribute.valores.map((option) => { const selected = selectedAttributes[attribute.atributoId] === option; return <button type="button" key={option} onClick={() => setSelectedAttributes((previous) => ({...previous, [attribute.atributoId]: option}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{selected && <Check size={14}/>} {option}</button>; })}</div></div>)}
+              {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => { const selected = selectedVariantOptions[group.id] === option.id; return <button type="button" key={option.id} onClick={() => setSelectedVariantOptions(previous => ({...previous, [group.id]: option.id}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{group.tipo === "color" && <span className="h-4 w-4 rounded-full border" style={{backgroundColor: option.hex || "#ddd"}}/>}{selected && <Check size={14}/>} {option.nombre}</button>; })}</div></div>)}
+              {!variantGroups.length &&  <div key={attribute.atributoId} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{attribute.definition?.nombreAtributo || "Atributo"}</label><div className="flex flex-wrap gap-2">{attribute.valores.map((option) => { const selected = selectedAttributes[attribute.atributoId] === option; return <button type="button" key={option} onClick={() => setSelectedAttributes((previous) => ({...previous, [attribute.atributoId]: option}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{selected && <Check size={14}/>} {option}</button>; })}</div></div>)}
               {Array.isArray(product.colores) && product.colores.length > 0 && <div className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Variante de Diseño</label><div className="flex flex-wrap gap-3">{product.colores.map((color: any) => { const selected = selectedColor?.name === color.name; return <button type="button" key={color.name} onClick={() => setSelectedColor(color)} className={`flex items-center gap-3 rounded-2xl border p-1.5 pr-4 ${selected ? "border-primary bg-primary/10" : "border-gray-200 bg-white"}`}><div className="h-8 w-8 rounded-xl border" style={{backgroundColor: color.hex}}/><span className="text-[10px] font-bold uppercase">{color.name}</span></button>; })}</div></div>}
             </div>
             <div className="space-y-8 rounded-[2rem] border border-primary/10 bg-white p-5 sm:p-8"><div className="flex flex-col items-center justify-between gap-6 md:flex-row"><div className="w-full space-y-3 md:w-auto"><label className="block text-[10px] font-black uppercase text-gray-500">Cantidad</label><div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-[#F8FAFA] p-1"><button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))} className="p-3"><Minus size={20}/></button><span className="w-12 text-center text-xl font-black text-primary">{quantity}</span><button type="button" onClick={() => setQuantity((current) => current + 1)} className="p-3"><Plus size={20}/></button></div></div><div className="text-center md:text-right"><label className="block text-[10px] font-black uppercase text-gray-500">Total Estimado</label><div className="text-4xl font-black text-accent">C$ {totalPrice}</div><span className="text-[10px] font-bold uppercase text-gray-500">C$ {unitPrice} por unidad</span></div></div><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><button type="button" onClick={handleDirectOrder} className="flex items-center justify-center gap-3 rounded-2xl bg-primary py-5 text-sm font-black uppercase tracking-widest text-white"><MessageCircle size={20}/> Personalizar y Pedir</button><button type="button" onClick={handleAddToQuote} className={`flex items-center justify-center gap-3 rounded-2xl border-2 py-5 text-sm font-black uppercase ${addedToQuote ? "border-green-500 bg-green-500/10 text-green-500" : "border-gray-200 bg-white text-secondary"}`}>{addedToQuote ? <><Check size={20}/> ¡Añadido!</> : <><ShoppingCart size={20}/> Añadir a Cotización</>}</button></div></div>
