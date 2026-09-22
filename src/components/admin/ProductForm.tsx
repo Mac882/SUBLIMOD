@@ -141,10 +141,11 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantCombinations(prev => prev.filter(combo => combo.opciones[groupId] !== optionId));
     setVariantOptionFiles(prev => { const next = { ...prev }; delete next[optionId]; return next; });
   };
-  const generateVariantCombinations = () => {
+  const buildVariantCombinations = (existingCombinations: ProductVariantCombination[] = variantCombinations): ProductVariantCombination[] | null => {
     const validGroups = variantGroups.filter(group => group.opciones.length > 0 && group.opciones.some(option => option.nombre.trim()));
     if (!validGroups.length || validGroups.length !== variantGroups.length) {
-      return alert("Cada característica de variante debe tener al menos una opción válida.");
+      alert("Cada característica de variante debe tener al menos una opción válida.");
+      return null;
     }
 
     const orderedGroups: ProductVariantGroup[] = [];
@@ -152,7 +153,8 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     while (pending.length) {
       const nextIndex = pending.findIndex(group => !group.dependeDe || orderedGroups.some(parent => parent.id === group.dependeDe));
       if (nextIndex === -1) {
-        return alert("Hay una dependencia de variantes que no puede resolverse. Revisa el grupo padre de cada característica.");
+        alert("Hay una dependencia de variantes que no puede resolverse. Revisa el grupo padre de cada característica.");
+        return null;
       }
       orderedGroups.push(pending.splice(nextIndex, 1)[0]);
     }
@@ -175,11 +177,12 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     build(0, {});
 
     if (!combinations.length) {
-      return alert("No hay combinaciones válidas. Revisa las disponibilidades de las opciones dependientes.");
+      alert("No hay combinaciones válidas. Revisa las disponibilidades de las opciones dependientes.");
+      return null;
     }
 
-    const existingByKey = new Map(variantCombinations.map(combo => [getVariantCombinationKey(combo.opciones), combo]));
-    const next = combinations.map(options => {
+    const existingByKey = new Map(existingCombinations.map(combo => [getVariantCombinationKey(combo.opciones), combo]));
+    return combinations.map(options => {
       const existing = existingByKey.get(getVariantCombinationKey(options));
       const names = validGroups.map(group => group.opciones.find(option => option.id === options[group.id])?.nombre || "").filter(Boolean);
       return existing || {
@@ -190,14 +193,30 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         precio: null,
       };
     });
-    setVariantCombinations(next);
+  };
+
+  const generateVariantCombinations = () => {
+    const next = buildVariantCombinations();
+    if (next) setVariantCombinations(next);
   };
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
   const handleSubmit = async () => {
     if (!productName.trim() || !categoryId) return alert("Faltan datos obligatorios (Nombre y Categoría).");
-    if (variantsEnabled && variantGroups.length > 0 && variantCombinations.length === 0) return alert("Genera las combinaciones válidas de las variantes antes de publicar.");
+
+    // Las variantes se generan automáticamente al publicar para evitar
+    // obligar al usuario a pulsar primero "Generar combinaciones".
+    let combinationsToSave = variantCombinations;
+    let combinationsGeneratedAutomatically = false;
+
+    if (variantsEnabled && variantGroups.length > 0) {
+      const generated = buildVariantCombinations(variantCombinations);
+      if (!generated) return;
+      combinationsToSave = generated;
+      combinationsGeneratedAutomatically = variantCombinations.length === 0;
+    }
+
     setIsUploading(true);
     try {
       const uploadedUrls: string[] = [];
@@ -218,8 +237,6 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         })),
       })));
 
-      // La galería general es opcional si el producto tiene imágenes en
-      // opciones de variantes configuradas como visuales.
       if (uploadedUrls.length === 0) {
         const variantImage = preparedGroups
           .flatMap(group => group.imagenPorOpcion ? group.opciones.map(option => option.imagenUrl).filter(Boolean) : [])
@@ -232,12 +249,21 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       }
 
       const variantes: ProductVariantsConfig = {
-        habilitado: variantsEnabled && preparedGroups.length > 0 && variantCombinations.length > 0,
+        habilitado: variantsEnabled && preparedGroups.length > 0 && combinationsToSave.length > 0,
         grupos: preparedGroups,
-        combinaciones: variantCombinations,
+        combinaciones: combinationsToSave,
       };
       const data = { nombre: productName.trim(), descripcion: description.trim(), categoriaId: categoryId, categoria: category, imagenUrl: uploadedUrls[0], imagenes: uploadedUrls, atributos, colores: colors, variantes, escalasPrecios: priceMatrix, updatedAt: serverTimestamp() };
-      if (productToEdit) await updateDoc(doc(db, "productos", productToEdit.id), data); else await addDoc(collection(db, "productos"), { ...data, createdAt: serverTimestamp(), activo: true });
+      if (productToEdit) {
+        await updateDoc(doc(db, "productos", productToEdit.id), data);
+      } else {
+        await addDoc(collection(db, "productos"), { ...data, createdAt: serverTimestamp(), activo: true });
+      }
+
+      const message = combinationsGeneratedAutomatically
+        ? `Producto publicado correctamente. Se generaron automáticamente ${combinationsToSave.length} combinaciones válidas.`
+        : "Producto publicado correctamente.";
+      alert(message);
       onClose();
     } catch (e) { console.error(e); alert("Error al guardar el producto."); } finally { setIsUploading(false); }
   };
