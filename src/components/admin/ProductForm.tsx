@@ -8,7 +8,7 @@ import { compressImage } from "@/lib/imageUtils";
 import { ProductVariantCombination, ProductVariantGroup, ProductVariantOption, ProductVariantsConfig, getVariantCombinationKey } from "@/types/productVariants";
 import { validatePriceScales } from "@/lib/pricing";
 interface ColorVariant { name: string; hex: string; }
-interface PriceScale { min: number; max: number | null; price: number; }
+interface PriceScale { min: number | null; max: number | null; price: number; }
 interface CategoryOption { id: string; nombre: string; }
 interface ProductFormProps { onClose: () => void; productToEdit?: any; availableCategories?: string[] | CategoryOption[]; globalAttributes: any[]; }
 const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormProps) => {
@@ -221,26 +221,16 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   };
 
   const addPriceScale = () => {
-    setPriceMatrix(prev => {
-      const current = [...prev];
-      const last = current[current.length - 1];
-      const nextMin = last?.max == null ? (last?.min || 1) + 5 : last.max + 1;
-      if (last?.max == null && last) current[current.length - 1] = { ...last, max: nextMin - 1 };
-      return [...current, { min: nextMin, max: null, price: last?.price || 0 }];
-    });
+    setPriceMatrix(prev => [
+      ...prev,
+      { min: null as any, max: null, price: 0 },
+    ]);
   };
 
   const removePriceScale = (index: number) => {
     setPriceMatrix(prev => {
       if (prev.length <= 1) return [{ min: 1, max: null, price: prev[0]?.price || 0 }];
-      const next = prev.filter((_, scaleIndex) => scaleIndex !== index);
-      next[0] = { ...next[0], min: 1 };
-      for (let i = 1; i < next.length; i += 1) {
-        const previous = next[i - 1];
-        next[i] = { ...next[i], min: (previous.max ?? previous.min) + 1 };
-      }
-      next[next.length - 1] = { ...next[next.length - 1], max: null };
-      return next;
+      return prev.filter((_, scaleIndex) => scaleIndex !== index);
     });
   };
 
@@ -346,13 +336,19 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         </div>
         <div className="space-y-3">
           {priceMatrix.map((scale, index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end bg-white/[0.02] p-4 rounded-2xl border border-white/5">
               <div>
-                <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">{index === 0 ? "Desde" : "Desde unidades"}</label>
-                <input type="number" min={index === 0 ? 1 : 2} value={scale.min}
+                <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">Desde</label>
+                <input type="number" min="1" value={scale.min ?? ""} placeholder={index === 0 ? "1" : "Ej. 4"}
                   disabled={index === 0}
-                  onChange={e => updatePriceScale(index, { min: Math.max(1, Number(e.target.value) || 1) })}
+                  onChange={e => updatePriceScale(index, { min: e.target.value === "" ? null : Math.max(1, Number(e.target.value)) })}
                   className="w-full bg-black/40 p-3 rounded-xl text-white font-bold disabled:opacity-60" />
+              </div>
+              <div>
+                <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">Hasta</label>
+                <input type="number" min={scale.min || 1} value={scale.max ?? ""} placeholder="Sin límite"
+                  onChange={e => updatePriceScale(index, { max: e.target.value === "" ? null : Math.max(1, Number(e.target.value)) })}
+                  className="w-full bg-black/40 p-3 rounded-xl text-white font-bold" />
               </div>
               <div>
                 <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">Precio por unidad (C$)</label>
@@ -361,15 +357,12 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
                   className="w-full bg-black/40 p-3 rounded-xl text-accent font-bold" placeholder="350" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-gray-500 font-bold uppercase whitespace-nowrap">
-                  {scale.max == null ? "Sin límite" : `Hasta ${scale.max}`}
-                </span>
                 {priceMatrix.length > 1 && <button type="button" onClick={() => removePriceScale(index)} className="p-3 rounded-xl bg-red-500/10 text-red-400"><Trash2 size={16}/></button>}
               </div>
             </div>
           ))}
           <button type="button" onClick={addPriceScale} className="px-4 py-3 rounded-xl bg-accent text-black text-[10px] font-black uppercase">+ Añadir escala</button>
-          <p className="text-[9px] text-gray-500">Ejemplo: 1–5 = precio base, 6–11 = segunda escala, 12–23 = tercera escala, 24+ = última escala.</p>
+          <p className="text-[9px] text-gray-500">Las escalas adicionales son opcionales. Ejemplo: 1–3 = C$350, 4–6 = C$330, 7+ = C$310. Tú defines los rangos; el sistema solo valida que sean consecutivos y no se solapen.</p>
         </div>
       </section>
 
