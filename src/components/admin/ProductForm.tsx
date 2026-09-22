@@ -6,15 +6,16 @@ import { collection, addDoc, updateDoc, doc, serverTimestamp, arrayUnion, onSnap
 import { X, Plus, Trash2, Check, Hash, Type, Info, Layers, Upload, Image as ImageIcon, Tag, PlusCircle, AlertCircle, Loader2 } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { ProductVariantCombination, ProductVariantGroup, ProductVariantOption, ProductVariantsConfig, getVariantCombinationKey } from "@/types/productVariants";
+import { validatePriceScales } from "@/lib/pricing";
 interface ColorVariant { name: string; hex: string; }
-interface PriceScale { min: number; max: number; price: number; }
+interface PriceScale { min: number; max: number | null; price: number; }
 interface CategoryOption { id: string; nombre: string; }
 interface ProductFormProps { onClose: () => void; productToEdit?: any; availableCategories?: string[] | CategoryOption[]; globalAttributes: any[]; }
 const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormProps) => {
   const [categories, setCategories] = useState<CategoryOption[]>([]), [isUploading, setIsUploading] = useState(false), [isCompressing, setIsCompressing] = useState(false);
   const [categoryId, setCategoryId] = useState(""), [category, setCategory] = useState(""), [productName, setProductName] = useState(""), [description, setDescription] = useState("");
   const [images, setImages] = useState<{url: string; file?: File}[]>([]), [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
-  const [colors, setColors] = useState<ColorVariant[]>([]), [priceMatrix, setPriceMatrix] = useState<PriceScale[]>([{ min: 1, max: 12, price: 0 }]);
+  const [colors, setColors] = useState<ColorVariant[]>([]), [priceMatrix, setPriceMatrix] = useState<PriceScale[]>([{ min: 1, max: null, price: 0 }]);
   const [variantsEnabled, setVariantsEnabled] = useState(false);
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<ProductVariantCombination[]>([]);
@@ -41,7 +42,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantGroups([]);
     setVariantCombinations([]);
     setVariantOptionFiles({});
-    setPriceMatrix([{ min: 1, max: 12, price: 0 }]);
+    setPriceMatrix([{ min: 1, max: null, price: 0 }]);
   }, [productToEdit]);
 
   // Cargar datos de edición. Este efecto sí puede reaccionar a la llegada de
@@ -58,7 +59,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos.map((group: any) => ({ ...group, imagenPorOpcion: Boolean(group.imagenPorOpcion || group.opciones?.some((option: any) => option.imagenUrl)) })) : []);
     setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
     setVariantOptionFiles({});
-    setPriceMatrix(productToEdit.escalasPrecios || [{ min: 1, max: 12, price: 0 }]);
+    setPriceMatrix((productToEdit.escalasPrecios || [{ min: 1, max: null, price: 0 }]).map((scale: any) => ({ min: Number(scale.min) || 1, max: scale.max == null ? null : Number(scale.max), price: Number(scale.price) || 0 })));
     const selected: Record<string, string[]> = {};
     if (Array.isArray(productToEdit.atributos)) productToEdit.atributos.forEach((a: any) => { if (a.atributoId) selected[a.atributoId] = a.valores || []; });
     else Object.entries(productToEdit.atributos || {}).forEach(([key, vals]: any) => { const attr = globalAttributes.find(a => a.id === key || a.nombreAtributo === key); if (attr) selected[attr.id] = Array.isArray(vals) ? vals : [vals]; });
@@ -190,7 +191,6 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         opciones: comboOptions,
         nombre: names.join(" / "),
         activo: true,
-        precio: null,
       };
     });
   };
@@ -214,8 +214,43 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
+  const updatePriceScale = (index: number, patch: Partial<PriceScale>) => {
+    setPriceMatrix(prev => prev.map((scale, scaleIndex) =>
+      scaleIndex === index ? { ...scale, ...patch } : scale
+    ));
+  };
+
+  const addPriceScale = () => {
+    setPriceMatrix(prev => {
+      const current = [...prev];
+      const last = current[current.length - 1];
+      const nextMin = last?.max == null ? (last?.min || 1) + 5 : last.max + 1;
+      if (last?.max == null && last) current[current.length - 1] = { ...last, max: nextMin - 1 };
+      return [...current, { min: nextMin, max: null, price: last?.price || 0 }];
+    });
+  };
+
+  const removePriceScale = (index: number) => {
+    setPriceMatrix(prev => {
+      if (prev.length <= 1) return [{ min: 1, max: null, price: prev[0]?.price || 0 }];
+      const next = prev.filter((_, scaleIndex) => scaleIndex !== index);
+      next[0] = { ...next[0], min: 1 };
+      for (let i = 1; i < next.length; i += 1) {
+        const previous = next[i - 1];
+        next[i] = { ...next[i], min: (previous.max ?? previous.min) + 1 };
+      }
+      next[next.length - 1] = { ...next[next.length - 1], max: null };
+      return next;
+    });
+  };
+
   const handleSubmit = async () => {
     try {
+      const priceValidation = validatePriceScales(priceMatrix);
+      if (priceValidation) {
+        alert(priceValidation);
+        return;
+      }
       if (!productName.trim()) {
         alert("No se puede publicar: falta el nombre del producto.");
         return;
@@ -307,18 +342,34 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       <section className="pt-10 border-t border-white/5 space-y-5">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2"><Hash className="text-accent" size={20}/> Precio del producto</h3>
-          <p className="text-[10px] text-gray-500 mt-1 uppercase">Precio base por unidad. Las combinaciones pueden usar este precio o tener uno especial.</p>
+          <p className="text-[10px] text-gray-500 mt-1 uppercase">El precio depende de la cantidad total del producto. Las variantes no tienen precio propio.</p>
         </div>
-        <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white/[0.02] p-5 rounded-2xl">
-          <label className="text-[10px] font-black uppercase text-gray-500 md:w-48">Precio base (C$)</label>
-          <input type="number" min="0" step="0.01" value={priceMatrix[0]?.price ?? 0}
-            onChange={e => {
-              const next = [...priceMatrix];
-              if (!next.length) next.push({ min: 1, max: 12, price: 0 });
-              next[0] = { ...next[0], min: next[0].min || 1, max: next[0].max || 12, price: Number(e.target.value) || 0 };
-              setPriceMatrix(next);
-            }}
-            className="w-full md:w-48 bg-black/40 p-3 rounded-xl text-accent text-lg font-bold" placeholder="350" />
+        <div className="space-y-3">
+          {priceMatrix.map((scale, index) => (
+            <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end bg-white/[0.02] p-4 rounded-2xl border border-white/5">
+              <div>
+                <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">{index === 0 ? "Desde" : "Desde unidades"}</label>
+                <input type="number" min={index === 0 ? 1 : 2} value={scale.min}
+                  disabled={index === 0}
+                  onChange={e => updatePriceScale(index, { min: Math.max(1, Number(e.target.value) || 1) })}
+                  className="w-full bg-black/40 p-3 rounded-xl text-white font-bold disabled:opacity-60" />
+              </div>
+              <div>
+                <label className="block text-[9px] font-black uppercase text-gray-500 mb-2">Precio por unidad (C$)</label>
+                <input type="number" min="0" step="0.01" value={scale.price}
+                  onChange={e => updatePriceScale(index, { price: Math.max(0, Number(e.target.value) || 0) })}
+                  className="w-full bg-black/40 p-3 rounded-xl text-accent font-bold" placeholder="350" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-gray-500 font-bold uppercase whitespace-nowrap">
+                  {scale.max == null ? "Sin límite" : `Hasta ${scale.max}`}
+                </span>
+                {priceMatrix.length > 1 && <button type="button" onClick={() => removePriceScale(index)} className="p-3 rounded-xl bg-red-500/10 text-red-400"><Trash2 size={16}/></button>}
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={addPriceScale} className="px-4 py-3 rounded-xl bg-accent text-black text-[10px] font-black uppercase">+ Añadir escala</button>
+          <p className="text-[9px] text-gray-500">Ejemplo: 1–5 = precio base, 6–11 = segunda escala, 12–23 = tercera escala, 24+ = última escala.</p>
         </div>
       </section>
 
