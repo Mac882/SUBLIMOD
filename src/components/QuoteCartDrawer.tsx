@@ -90,7 +90,10 @@ ${attrString}
                   <p className="text-sm font-black uppercase tracking-widest text-gray-500">Carrito vacío</p>
                 </div>
               ) : (
-                cartItems.map((item) => (
+                cartItems.map((item) => {
+                  const productQuantity = productQuantities[item.productId] || item.cantidad;
+                  const scale = getApplicablePriceScale(item.escalasPrecios, productQuantity);
+                  return (
                   <div key={item.id} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 flex gap-4 relative group">
                     <img src={item.imagen} alt={item.nombre} className="w-16 h-16 object-cover rounded-xl bg-black/20" />
                     <div className="flex-grow">
@@ -107,7 +110,8 @@ ${attrString}
                     </div>
                     <button onClick={() => removeItem(item.id)} className="text-gray-600 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 
