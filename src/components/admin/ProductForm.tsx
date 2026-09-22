@@ -95,6 +95,22 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   };
   const updateVariantGroup = (groupId: string, patch: Partial<ProductVariantGroup>) =>
     setVariantGroups(prev => prev.map(group => group.id === groupId ? { ...group, ...patch } : group));
+  const toggleVariantOptionParent = (groupId: string, optionId: string, parentOptionId: string) => {
+    setVariantGroups(prev => prev.map(group => {
+      if (group.id !== groupId) return group;
+      return {
+        ...group,
+        opciones: group.opciones.map(option => {
+          if (option.id !== optionId) return option;
+          const current = option.disponiblePara || [];
+          const disponiblePara = current.includes(parentOptionId)
+            ? current.filter(id => id !== parentOptionId)
+            : [...current, parentOptionId];
+          return { ...option, disponiblePara };
+        }),
+      };
+    }));
+  };
   const removeVariantGroup = (groupId: string) => {
     setVariantGroups(prev => prev.filter(group => group.id !== groupId));
     setVariantCombinations(prev => prev.filter(combo => !Object.prototype.hasOwnProperty.call(combo.opciones, groupId)));
@@ -129,12 +145,38 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     if (!validGroups.length || validGroups.length !== variantGroups.length) {
       return alert("Cada característica de variante debe tener al menos una opción válida.");
     }
-    let combinations: Record<string, string>[] = [{}];
-    validGroups.forEach(group => {
-      combinations = combinations.flatMap(current =>
-        group.opciones.filter(option => option.nombre.trim()).map(option => ({ ...current, [group.id]: option.id }))
-      );
-    });
+
+    const orderedGroups: ProductVariantGroup[] = [];
+    const pending = [...validGroups];
+    while (pending.length) {
+      const nextIndex = pending.findIndex(group => !group.dependeDe || orderedGroups.some(parent => parent.id === group.dependeDe));
+      if (nextIndex === -1) {
+        return alert("Hay una dependencia de variantes que no puede resolverse. Revisa el grupo padre de cada característica.");
+      }
+      orderedGroups.push(pending.splice(nextIndex, 1)[0]);
+    }
+
+    const combinations: Record<string, string>[] = [];
+    const build = (index: number, selected: Record<string, string>) => {
+      if (index >= orderedGroups.length) {
+        combinations.push(selected);
+        return;
+      }
+      const group = orderedGroups[index];
+      const parentValue = group.dependeDe ? selected[group.dependeDe] : undefined;
+      const options = group.opciones.filter(option => {
+        if (!option.nombre.trim()) return false;
+        if (!group.dependeDe) return true;
+        return !option.disponiblePara?.length || Boolean(parentValue && option.disponiblePara.includes(parentValue));
+      });
+      options.forEach(option => build(index + 1, { ...selected, [group.id]: option.id }));
+    };
+    build(0, {});
+
+    if (!combinations.length) {
+      return alert("No hay combinaciones válidas. Revisa las disponibilidades de las opciones dependientes.");
+    }
+
     const existingByKey = new Map(variantCombinations.map(combo => [getVariantCombinationKey(combo.opciones), combo]));
     const next = combinations.map(options => {
       const existing = existingByKey.get(getVariantCombinationKey(options));
@@ -206,24 +248,53 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
             </div>
           </div>
           {variantGroups.length === 0 && <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center"><p className="text-xs font-bold text-gray-400">Todavía no has agregado características.</p><p className="text-[10px] text-gray-600 mt-1">Ejemplo: Color + Talla + Cuello para una camiseta.</p></div>}
-          {variantGroups.map(group => <div key={group.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
-            <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
-              <input value={group.nombre} onChange={e => updateVariantGroup(group.id, { nombre: e.target.value })} className="flex-grow bg-black/30 p-3 rounded-xl text-white" placeholder="Color, Talla, Asa, Cuello..." />
-              <select value={group.tipo || "select"} onChange={e => updateVariantGroup(group.id, { tipo: e.target.value as "select" | "color" })} className="bg-black/30 p-3 rounded-xl text-white" style={{ colorScheme: "dark" }}><option value="select">Opciones</option><option value="color">Color</option></select>
-              <label className="flex items-center gap-2 text-[9px] font-black uppercase text-gray-500"><input type="checkbox" checked={group.requerido !== false} onChange={e => updateVariantGroup(group.id, { requerido: e.target.checked })} /> Requerida</label>
-              <button type="button" onClick={() => removeVariantGroup(group.id)} className="text-red-500 p-2"><Trash2 size={18}/></button>
-            </div>
-            <div className="space-y-2">
-              {group.opciones.map(option => <div key={option.id} className="flex flex-wrap gap-2 items-center bg-black/20 p-2 rounded-xl">
-                {group.tipo === "color" && <input type="color" value={option.hex || "#2E8982"} onChange={e => updateVariantOption(group.id, option.id, { hex: e.target.value })} className="w-9 h-9 bg-transparent" />}
-                <label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
-                {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" />}
-                <input value={option.nombre} onChange={e => updateVariantOption(group.id, option.id, { nombre: e.target.value })} className="flex-1 min-w-[140px] bg-black/30 p-2.5 rounded-lg text-white text-sm" placeholder="Nombre de opción" />
-                <button type="button" onClick={() => removeVariantOption(group.id, option.id)} className="text-red-500 p-2"><X size={15}/></button>
-              </div>)}
-              <button type="button" onClick={() => addVariantOption(group.id)} className="text-[10px] font-black text-accent uppercase">+ Añadir opción</button>
-            </div>
-          </div>)}
+          {variantGroups.map(group => {
+            const parentGroup = group.dependeDe ? variantGroups.find(parent => parent.id === group.dependeDe) : null;
+            return <div key={group.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-4">
+              <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+                <input value={group.nombre} onChange={e => updateVariantGroup(group.id, { nombre: e.target.value })} className="flex-grow bg-black/30 p-3 rounded-xl text-white" placeholder="Color, Talla, Asa, Cuello..." />
+                <select value={group.tipo || "select"} onChange={e => updateVariantGroup(group.id, { tipo: e.target.value as "select" | "color" })} className="bg-black/30 p-3 rounded-xl text-white" style={{ colorScheme: "dark" }}><option value="select">Opciones</option><option value="color">Color</option></select>
+                <select value={group.dependeDe || ""} onChange={e => updateVariantGroup(group.id, { dependeDe: e.target.value || undefined })} className="bg-black/30 p-3 rounded-xl text-white text-sm" style={{ colorScheme: "dark" }}>
+                  <option value="">Independiente</option>
+                  {variantGroups.filter(parent => parent.id !== group.id).map(parent => <option key={parent.id} value={parent.id}>Depende de: {parent.nombre || "Sin nombre"}</option>)}
+                </select>
+                <label className="flex items-center gap-2 text-[9px] font-black uppercase text-gray-500"><input type="checkbox" checked={group.requerido !== false} onChange={e => updateVariantGroup(group.id, { requerido: e.target.checked })} /> Requerida</label>
+                <button type="button" onClick={() => removeVariantGroup(group.id)} className="text-red-500 p-2"><Trash2 size={18}/></button>
+              </div>
+              {parentGroup && <div className="rounded-xl border border-accent/20 bg-accent/5 p-3">
+                <p className="text-[9px] font-black uppercase text-accent mb-2">Disponibilidad según {parentGroup.nombre}</p>
+                <p className="text-[9px] text-gray-500 mb-3">Marca en cada opción de {group.nombre} para qué opciones del grupo padre estará disponible.</p>
+              </div>}
+              <div className="space-y-2">
+                {group.opciones.map(option => <div key={option.id} className="bg-black/20 p-3 rounded-xl space-y-3">
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {group.tipo === "color" && <input type="color" value={option.hex || "#2E8982"} onChange={e => updateVariantOption(group.id, option.id, { hex: e.target.value })} className="w-9 h-9 bg-transparent" />}
+                    <label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
+                    {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" />}
+                    <input value={option.nombre} onChange={e => updateVariantOption(group.id, option.id, { nombre: e.target.value })} className="flex-1 min-w-[140px] bg-black/30 p-2.5 rounded-lg text-white text-sm" placeholder="Nombre de opción" />
+                    <button type="button" onClick={() => removeVariantOption(group.id, option.id)} className="text-red-500 p-2"><X size={15}/></button>
+                  </div>
+                  {parentGroup && <div className="pl-2">
+                    <p className="text-[9px] font-black uppercase text-gray-500 mb-2">Disponible para:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {parentGroup.opciones.map(parentOption => {
+                        const checked = !option.disponiblePara?.length || option.disponiblePara.includes(parentOption.id);
+                        return <label key={parentOption.id} className="flex items-center gap-2 rounded-lg bg-white/5 px-2.5 py-2 text-[9px] text-gray-300 cursor-pointer">
+                          <input type="checkbox" checked={checked} onChange={() => {
+                            const current = option.disponiblePara || parentGroup.opciones.map(item => item.id);
+                            const next = current.includes(parentOption.id) ? current.filter(id => id !== parentOption.id) : [...current, parentOption.id];
+                            updateVariantOption(group.id, option.id, { disponiblePara: next });
+                          }} />
+                          {parentOption.nombre}
+                        </label>;
+                      })}
+                    </div>
+                  </div>}
+                </div>)}
+                <button type="button" onClick={() => addVariantOption(group.id)} className="text-[10px] font-black text-accent uppercase">+ Añadir opción</button>
+              </div>
+            </div>;
+          })}
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={addVariantGroup} className="px-4 py-3 rounded-xl bg-white/5 text-gray-300 text-[10px] font-black uppercase">+ Nueva característica</button>
             <button type="button" onClick={generateVariantCombinations} disabled={!variantGroups.length} className="px-4 py-3 rounded-xl bg-accent text-black text-[10px] font-black uppercase">Generar combinaciones</button>
