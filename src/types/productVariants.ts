@@ -26,7 +26,6 @@ export interface ProductVariantCombination {
   nombre?: string;
   imagenUrl?: string;
   imagenes?: string[];
-  precio?: number | null;
   activo?: boolean;
   metadata?: Record<string, string | number | boolean>;
 }
