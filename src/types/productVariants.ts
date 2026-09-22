@@ -13,6 +13,8 @@ export interface ProductVariantGroup {
   nombre: string;
   tipo?: "select" | "color";
   requerido?: boolean;
+  /** Indica si las opciones de este grupo pueden tener una imagen propia. */
+  imagenPorOpcion?: boolean;
   /** Si se define, este grupo filtra sus opciones según la opción seleccionada del grupo padre. */
   dependeDe?: string;
   opciones: ProductVariantOption[];
