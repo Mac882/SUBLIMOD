@@ -55,7 +55,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setCategory(foundCategory?.nombre || productToEdit.categoria || "");
     setColors(productToEdit.colores || []);
     setVariantsEnabled(Boolean(productToEdit.variantes?.habilitado));
-    setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos : []);
+    setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos.map((group: any) => ({ ...group, imagenPorOpcion: Boolean(group.imagenPorOpcion) })) : []);
     setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
     setVariantOptionFiles({});
     setPriceMatrix(productToEdit.escalasPrecios || [{ min: 1, max: 12, price: 0 }]);
@@ -72,13 +72,14 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const handleCreateCategoryInSitu = async () => { const clean = newCatName.trim(); if (!clean) return; try { const newRef = await addDoc(collection(db, "categorias"), { nombre: clean, createdAt: serverTimestamp() }); await updateDoc(newRef, { id: newRef.id }); setCategoryId(newRef.id); setCategory(clean); setNewCatName(""); setShowInSituCat(false); } catch (e) { console.error(e); alert("No se pudo crear la categoría."); } };
   const handleCreateAttrInSitu = async () => { const clean = newAttrName.trim(); if (!clean || !categoryId) return; try { await addDoc(collection(db, "atributos_globales"), { nombreAtributo: clean, categoriaId: categoryId, categoriaAsociada: category, opciones: [], createdAt: serverTimestamp() }); setNewAttrName(""); setShowInSituAttr(false); } catch (e) { console.error(e); alert("No se pudo crear el atributo."); } };
   const addNewOption = async (attr: any, value: string) => { const clean = value.trim(); if (!clean) return; toggleOption(attr.id, clean); try { await updateDoc(doc(db, "atributos_globales", attr.id), { opciones: arrayUnion(clean) }); } catch (e) { console.error(e); } };
-  const addVariantPreset = (nombre: string, opciones: string[], tipo: "select" | "color" = "select") => {
+  const addVariantPreset = (nombre: string, opciones: string[], tipo: "select" | "color" = "select", imagenPorOpcion = false) => {
     const id = "grupo_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
     setVariantGroups(prev => [...prev, {
       id,
       nombre,
       tipo,
       requerido: true,
+      imagenPorOpcion,
       opciones: opciones.map((nombreOpcion, index) => ({
         id: "opcion_" + Date.now() + "_" + index + "_" + Math.random().toString(36).slice(2, 6),
         nombre: nombreOpcion,
@@ -90,7 +91,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
 
   const addVariantGroup = () => {
     const id = `grupo_${Date.now()}`;
-    setVariantGroups(prev => [...prev, { id, nombre: "Nueva característica", tipo: "select", requerido: true, opciones: [] }]);
+    setVariantGroups(prev => [...prev, { id, nombre: "Nueva característica", tipo: "select", requerido: true, imagenPorOpcion: false, opciones: [] }]);
     setVariantsEnabled(true);
   };
   const updateVariantGroup = (groupId: string, patch: Partial<ProductVariantGroup>) =>
@@ -195,12 +196,15 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
   const handleSubmit = async () => {
-    if (!productName.trim() || !categoryId || images.length === 0) return alert("Faltan datos obligatorios (Nombre, Categoría e Imagen).");
+    if (!productName.trim() || !categoryId) return alert("Faltan datos obligatorios (Nombre y Categoría).");
+    if (variantsEnabled && variantGroups.length > 0 && variantCombinations.length === 0) return alert("Genera las combinaciones válidas de las variantes antes de publicar.");
     setIsUploading(true);
     try {
       const uploadedUrls: string[] = [];
       for (const img of images) { if (img.file) { const storageRef = ref(storage, `productos/${Date.now()}_${img.file.name}`); uploadedUrls.push(await getDownloadURL((await uploadBytes(storageRef, img.file)).ref)); } else uploadedUrls.push(img.url); }
+
       const atributos = Object.entries(selectedOptions).filter(([, vals]) => vals.length).map(([atributoId, valores]) => ({ atributoId, valores }));
+
       const preparedGroups = await Promise.all(variantGroups.map(async group => ({
         ...group,
         nombre: group.nombre.trim(),
@@ -213,6 +217,20 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
           return { ...option, nombre: option.nombre.trim(), imagenUrl };
         })),
       })));
+
+      // La galería general es opcional si el producto tiene imágenes en
+      // opciones de variantes configuradas como visuales.
+      if (uploadedUrls.length === 0) {
+        const variantImage = preparedGroups
+          .flatMap(group => group.imagenPorOpcion ? group.opciones.map(option => option.imagenUrl).filter(Boolean) : [])
+          .find(Boolean);
+        if (variantImage) uploadedUrls.push(variantImage);
+      }
+
+      if (uploadedUrls.length === 0) {
+        return alert("Agrega al menos una imagen en la galería o una imagen en las opciones de una variante visual.");
+      }
+
       const variantes: ProductVariantsConfig = {
         habilitado: variantsEnabled && preparedGroups.length > 0 && variantCombinations.length > 0,
         grupos: preparedGroups,
@@ -230,6 +248,24 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     <div className="p-8 space-y-10">
       <section className="grid grid-cols-1 md:grid-cols-3 gap-8"><div className="md:col-span-2 space-y-3"><label className="text-[10px] font-black text-gray-500 uppercase flex items-center gap-2"><Type size={14}/> Nombre</label><input value={productName} onChange={e => setProductName(e.target.value)} className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-white outline-none" placeholder="Ej: Llavero Corazón"/></div><div className="space-y-3"><label className="text-[10px] font-black text-gray-500 uppercase flex items-center gap-2"><Layers size={14}/> Categoría</label><div className="flex gap-2"><select value={categoryId} onChange={e => selectCategory(e.target.value)} style={{ colorScheme: "dark" }} className="flex-grow bg-[#1A1A1A] border border-white/10 rounded-2xl p-4 text-white [&>option]:bg-[#1A1A1A] [&>option]:text-white"><option value="">Elegir...</option>{categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select><button onClick={() => setShowInSituCat(true)} className="bg-primary/10 text-primary p-4 rounded-2xl"><Plus size={20}/></button></div></div><div className="md:col-span-3"><label className="text-[10px] font-black text-gray-500 uppercase flex items-center gap-2"><Info size={14}/> Descripción</label><textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full mt-3 bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-white h-24"/></div></section>
       <section className="space-y-4"><div className="flex justify-between items-center"><label className="text-[10px] font-black text-gray-500 uppercase flex items-center gap-2"><ImageIcon size={14}/> Galería {isCompressing && <Loader2 size={13} className="animate-spin text-primary"/>}</label><label className="cursor-pointer bg-white/5 px-4 py-2 rounded-xl text-[10px] font-black text-gray-400 uppercase">+ Añadir Fotos<input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange}/></label></div>{images.length === 0 ? <label className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-white/10 rounded-[2rem] cursor-pointer"><Upload className="text-gray-600 mb-3"/><span className="text-[10px] font-black text-gray-400 uppercase">Cargar imágenes</span><input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange}/></label> : <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#121212] p-4 rounded-[2rem]">{images.map((img, i) => <div key={i} className="relative aspect-square"><img src={img.url} className="w-full h-full object-cover rounded-2xl" alt=""/><button onClick={() => setImages(images.filter((_, idx) => idx !== i))} className="absolute top-2 right-2 bg-black/70 text-white p-2 rounded-xl"><Trash2 size={15}/></button>{i === 0 && <span className="absolute bottom-2 left-2 bg-primary text-white text-[9px] px-2 py-1 rounded">Principal</span>}</div>)}</div>}</section>
+      <section className="pt-10 border-t border-white/5 space-y-5">
+        <div>
+          <h3 className="text-xl font-bold text-white flex items-center gap-2"><Hash className="text-accent" size={20}/> Precio del producto</h3>
+          <p className="text-[10px] text-gray-500 mt-1 uppercase">Precio base por unidad. Las combinaciones pueden usar este precio o tener uno especial.</p>
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center gap-4 bg-white/[0.02] p-5 rounded-2xl">
+          <label className="text-[10px] font-black uppercase text-gray-500 md:w-48">Precio base (C$)</label>
+          <input type="number" min="0" step="0.01" value={priceMatrix[0]?.price ?? 0}
+            onChange={e => {
+              const next = [...priceMatrix];
+              if (!next.length) next.push({ min: 1, max: 12, price: 0 });
+              next[0] = { ...next[0], min: next[0].min || 1, max: next[0].max || 12, price: Number(e.target.value) || 0 };
+              setPriceMatrix(next);
+            }}
+            className="w-full md:w-48 bg-black/40 p-3 rounded-xl text-accent text-lg font-bold" placeholder="350" />
+        </div>
+      </section>
+
       <section className="border-t border-white/5 pt-10 space-y-8"><div className="flex justify-between items-center"><span className="text-primary font-black uppercase text-[10px] tracking-widest flex items-center gap-2"><Tag size={16}/> Atributos del Producto</span><button onClick={() => categoryId ? setShowInSituAttr(true) : alert("Selecciona una categoría primero")} className="text-[10px] font-black text-accent uppercase">+ Crear Grupo</button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8">{relevantAttributes.map(attr => <AttributeField key={attr.id} attr={attr} selected={selectedOptions[attr.id] || []} onToggle={(v: string) => toggleOption(attr.id, v)} onAdd={(v: string) => addNewOption(attr, v)}/>) }{categoryId && relevantAttributes.length === 0 && <div className="text-gray-600 bg-white/5 p-6 rounded-2xl text-[10px] font-bold uppercase flex gap-3"><AlertCircle size={18}/> Esta categoría aún no tiene grupos de atributos.</div>}</div></section>
       <section className="pt-10 border-t border-white/5 space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -240,10 +276,10 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-4">
             <div><p className="text-xs font-black uppercase text-white">Añadir característica</p><p className="text-[10px] text-gray-500 mt-1">Puedes usar una plantilla o crear una característica personalizada.</p></div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => addVariantPreset("Color", ["Rojo", "Azul", "Verde"], "color")} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Color</button>
+              <button type="button" onClick={() => addVariantPreset("Color", ["Rojo", "Azul", "Verde"], "color", true)} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Color</button>
               <button type="button" onClick={() => addVariantPreset("Talla", ["16", "18", "S", "M", "L", "XL", "WXL"])} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Talla</button>
               <button type="button" onClick={() => addVariantPreset("Cuello", ["Redondo", "V"])} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Cuello</button>
-              <button type="button" onClick={() => addVariantPreset("Asa", ["Azul", "Rojo", "Celeste"], "color")} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Asa</button>
+              <button type="button" onClick={() => addVariantPreset("Asa", ["Azul", "Rojo", "Celeste"], "color", true)} className="px-3 py-2 rounded-xl bg-white/10 text-gray-200 text-[10px] font-black uppercase">+ Asa</button>
               <button type="button" onClick={addVariantGroup} className="px-3 py-2 rounded-xl bg-accent text-black text-[10px] font-black uppercase">+ Personalizada</button>
             </div>
           </div>
@@ -254,6 +290,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
               <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
                 <input value={group.nombre} onChange={e => updateVariantGroup(group.id, { nombre: e.target.value })} className="flex-grow bg-black/30 p-3 rounded-xl text-white" placeholder="Color, Talla, Asa, Cuello..." />
                 <select value={group.tipo || "select"} onChange={e => updateVariantGroup(group.id, { tipo: e.target.value as "select" | "color" })} className="bg-black/30 p-3 rounded-xl text-white" style={{ colorScheme: "dark" }}><option value="select">Opciones</option><option value="color">Color</option></select>
+                <label className="flex items-center gap-2 text-[9px] font-black uppercase text-gray-500 whitespace-nowrap"><input type="checkbox" checked={group.imagenPorOpcion === true} onChange={e => updateVariantGroup(group.id, { imagenPorOpcion: e.target.checked })} /> Imagen por opción</label>
                 <select value={group.dependeDe || ""} onChange={e => updateVariantGroup(group.id, { dependeDe: e.target.value || undefined })} className="bg-black/30 p-3 rounded-xl text-white text-sm" style={{ colorScheme: "dark" }}>
                   <option value="">Independiente</option>
                   {variantGroups.filter(parent => parent.id !== group.id).map(parent => <option key={parent.id} value={parent.id}>Depende de: {parent.nombre || "Sin nombre"}</option>)}
@@ -269,8 +306,8 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
                 {group.opciones.map(option => <div key={option.id} className="bg-black/20 p-3 rounded-xl space-y-3">
                   <div className="flex flex-wrap gap-2 items-center">
                     {group.tipo === "color" && <input type="color" value={option.hex || "#2E8982"} onChange={e => updateVariantOption(group.id, option.id, { hex: e.target.value })} className="w-9 h-9 bg-transparent" />}
-                    <label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
-                    {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" />}
+                    {group.imagenPorOpcion && <><label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
+                    {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" /></>}
                     <input value={option.nombre} onChange={e => updateVariantOption(group.id, option.id, { nombre: e.target.value })} className="flex-1 min-w-[140px] bg-black/30 p-2.5 rounded-lg text-white text-sm" placeholder="Nombre de opción" />
                     <button type="button" onClick={() => removeVariantOption(group.id, option.id)} className="text-red-500 p-2"><X size={15}/></button>
                   </div>
