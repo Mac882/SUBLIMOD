@@ -167,12 +167,12 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       }
       const group = orderedGroups[index];
       const parentValue = group.dependeDe ? selected[group.dependeDe] : undefined;
-      const options = group.opciones.filter(option => {
+      const availableOptions = group.opciones.filter(option => {
         if (!option.nombre.trim()) return false;
         if (!group.dependeDe) return true;
         return !option.disponiblePara?.length || Boolean(parentValue && option.disponiblePara.includes(parentValue));
       });
-      options.forEach(option => build(index + 1, { ...selected, [group.id]: option.id }));
+      availableOptions.forEach(option => build(index + 1, { ...selected, [group.id]: option.id }));
     };
     build(0, {});
 
@@ -182,12 +182,12 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     }
 
     const existingByKey = new Map(existingCombinations.map(combo => [getVariantCombinationKey(combo.opciones), combo]));
-    return combinations.map(options => {
-      const existing = existingByKey.get(getVariantCombinationKey(options));
-      const names = validGroups.map(group => group.opciones.find(option => option.id === options[group.id])?.nombre || "").filter(Boolean);
+    return combinations.map(comboOptions => {
+      const existing = existingByKey.get(getVariantCombinationKey(comboOptions));
+      const names = validGroups.map(group => group.opciones.find(option => option.id === comboOptions[group.id])?.nombre || "").filter(Boolean);
       return existing || {
         id: `combinacion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        opciones,
+        opciones: comboOptions,
         nombre: names.join(" / "),
         activo: true,
         precio: null,
