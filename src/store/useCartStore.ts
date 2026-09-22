@@ -20,10 +20,16 @@ const repriceItems = (items: CartItem[]): CartItem[] => {
     totals[item.productId] = (totals[item.productId] || 0) + Math.max(0, Number(item.cantidad) || 0);
     return totals;
   }, {});
+  const scalesByProduct = items.reduce<Record<string, CartItem["escalasPrecios"]>>((result, item) => {
+    if (item.escalasPrecios?.length && !result[item.productId]) result[item.productId] = item.escalasPrecios;
+    return result;
+  }, {});
+
   return items.map((item) => {
     const productQuantity = quantitiesByProduct[item.productId] || item.cantidad || 1;
-    const unitPrice = item.escalasPrecios?.length ? getUnitPriceByQuantity(item.escalasPrecios, productQuantity) : Number(item.precioUnitario) || 0;
-    return { ...item, precioUnitario: unitPrice, total: unitPrice * item.cantidad };
+    const scales = item.escalasPrecios?.length ? item.escalasPrecios : scalesByProduct[item.productId];
+    const unitPrice = scales?.length ? getUnitPriceByQuantity(scales, productQuantity) : Number(item.precioUnitario) || 0;
+    return { ...item, escalasPrecios: scales, precioUnitario: unitPrice, total: unitPrice * item.cantidad };
   });
 };
 
