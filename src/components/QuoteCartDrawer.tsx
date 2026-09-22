@@ -4,6 +4,7 @@ import { ShoppingBag, ShoppingCart, X, Trash2, MessageCircle, Package } from "lu
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useCartStore } from "@/store/useCartStore";
+import { getApplicablePriceScale } from "@/lib/pricing";
 
 const QuoteCartDrawer = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,12 +32,15 @@ const QuoteCartDrawer = () => {
     return () => window.removeEventListener("openSublimodCart", handleOpen);
   }, []);
 
+  const productQuantities = cartItems.reduce<Record<string, number>>((totals, item) => { totals[item.productId] = (totals[item.productId] || 0) + item.cantidad; return totals; }, {});
   const totalQuote = cartItems.reduce((acc, item) => acc + (item.total || 0), 0);
 
   const handleSendFullQuote = () => {
     if (cartItems.length === 0) return;
     let itemsList = "";
     cartItems.forEach((item, idx) => {
+      const productQuantity = productQuantities[item.productId] || item.cantidad;
+      const scale = getApplicablePriceScale(item.escalasPrecios, productQuantity);
       const attrString = item.atributos
         ? Object.entries(item.atributos).map(([k, v]) => `    • ${k}: ${v}`).join("\n")
         : "";
@@ -92,7 +96,7 @@ ${attrString}
                     <div className="flex-grow">
                       <h4 className="text-[11px] font-black text-white uppercase tracking-tight line-clamp-1">{item.nombre}</h4>
                       <div className="text-[9px] text-gray-500 mt-1">
-                        <p className="mb-1 text-primary font-bold">Cant: {item.cantidad} uds | C$ {item.precioUnitario} c/u</p>
+                        <p className="mb-1 text-primary font-bold">Cant: {item.cantidad} uds | C$ {item.precioUnitario} c/u</p><p className="mb-1 text-[8px] font-black uppercase text-gray-400">Total de este producto: {productQuantity} uds{scale ? ` · Escala ${scale.max == null ? `desde ${scale.min}` : `${scale.min}–${scale.max}`}` : ""}</p>
                         <div className="flex flex-wrap gap-1">
                           {item.atributos && Object.entries(item.atributos).map(([k, v]: any) => (
                             <span key={k} className="bg-white/5 px-2 py-0.5 rounded-[4px] border border-white/5 uppercase">{k}: {v}</span>
