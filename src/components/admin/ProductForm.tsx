@@ -18,7 +18,6 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const [variantsEnabled, setVariantsEnabled] = useState(false);
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<ProductVariantCombination[]>([]);
-  const [variantFeedback, setVariantFeedback] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const [variantOptionFiles, setVariantOptionFiles] = useState<Record<string, File>>({});
   const [showInSituCat, setShowInSituCat] = useState(false), [newCatName, setNewCatName] = useState(""), [showInSituAttr, setShowInSituAttr] = useState(false), [newAttrName, setNewAttrName] = useState("");
 
@@ -144,46 +143,28 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   };
   const buildVariantCombinations = (existingCombinations: ProductVariantCombination[] = variantCombinations): ProductVariantCombination[] | null => {
     const validGroups = variantGroups.filter(group => group.opciones.length > 0 && group.opciones.some(option => option.nombre.trim()));
-
-    if (!validGroups.length) {
-      const message = "No hay características de variantes configuradas. Agrega al menos una, por ejemplo Color o Talla.";
-      setVariantFeedback({ type: "error", message });
-      alert(message);
-      return null;
-    }
-
-    const invalidGroups = variantGroups.filter(group => group.opciones.length === 0 || !group.opciones.some(option => option.nombre.trim()));
-    if (invalidGroups.length) {
-      const names = invalidGroups.map(group => group.nombre.trim() || "Característica sin nombre").join(", ");
-      const message = `Faltan opciones en: ${names}. Agrega al menos una opción válida en cada característica.`;
-      setVariantFeedback({ type: "error", message });
-      alert(message);
+    if (!validGroups.length || validGroups.length !== variantGroups.length) {
+      alert("Cada característica de variante debe tener al menos una opción válida.");
       return null;
     }
 
     const orderedGroups: ProductVariantGroup[] = [];
     const pending = [...validGroups];
-
     while (pending.length) {
       const nextIndex = pending.findIndex(group => !group.dependeDe || orderedGroups.some(parent => parent.id === group.dependeDe));
       if (nextIndex === -1) {
-        const message = "No se puede resolver una dependencia de variantes. Revisa que cada característica dependiente tenga como padre una característica existente.";
-        setVariantFeedback({ type: "error", message });
-        alert(message);
+        alert("Hay una dependencia de variantes que no puede resolverse. Revisa el grupo padre de cada característica.");
         return null;
       }
       orderedGroups.push(pending.splice(nextIndex, 1)[0]);
     }
 
     const combinations: Record<string, string>[] = [];
-    const blockedGroups = new Set<string>();
-
     const build = (index: number, selected: Record<string, string>) => {
       if (index >= orderedGroups.length) {
         combinations.push(selected);
         return;
       }
-
       const group = orderedGroups[index];
       const parentValue = group.dependeDe ? selected[group.dependeDe] : undefined;
       const options = group.opciones.filter(option => {
@@ -191,31 +172,19 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         if (!group.dependeDe) return true;
         return !option.disponiblePara?.length || Boolean(parentValue && option.disponiblePara.includes(parentValue));
       });
-
-      if (!options.length) {
-        blockedGroups.add(group.nombre.trim() || "Característica sin nombre");
-        return;
-      }
-
       options.forEach(option => build(index + 1, { ...selected, [group.id]: option.id }));
     };
-
     build(0, {});
 
     if (!combinations.length) {
-      const blocked = Array.from(blockedGroups);
-      const detail = blocked.length ? ` No hay opciones compatibles en: ${blocked.join(", ")}.` : "";
-      const message = `No hay combinaciones válidas.${detail} Revisa las casillas "Disponible para" de las características dependientes.`;
-      setVariantFeedback({ type: "error", message });
-      alert(message);
+      alert("No hay combinaciones válidas. Revisa las disponibilidades de las opciones dependientes.");
       return null;
     }
 
     const existingByKey = new Map(existingCombinations.map(combo => [getVariantCombinationKey(combo.opciones), combo]));
-    const next = combinations.map(options => {
+    return combinations.map(options => {
       const existing = existingByKey.get(getVariantCombinationKey(options));
       const names = validGroups.map(group => group.opciones.find(option => option.id === options[group.id])?.nombre || "").filter(Boolean);
-
       return existing || {
         id: `combinacion_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         opciones,
@@ -224,32 +193,17 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         precio: null,
       };
     });
-
-    const message = `Se generaron correctamente ${next.length} combinaciones válidas.`;
-    setVariantFeedback({ type: "success", message });
-    return next;
   };
 
   const generateVariantCombinations = () => {
     const next = buildVariantCombinations();
-    if (!next) return;
-    setVariantCombinations(next);
-    alert(`✓ ${next.length} combinaciones válidas generadas correctamente.`);
+    if (next) setVariantCombinations(next);
   };
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
   const handleSubmit = async () => {
-    setVariantFeedback(null);
-
-    if (!productName.trim() || !categoryId) {
-      const message = !productName.trim()
-        ? "Falta el nombre del producto."
-        : "Falta seleccionar la categoría del producto.";
-      setVariantFeedback({ type: "error", message });
-      alert(message);
-      return;
-    }
+    if (!productName.trim() || !categoryId) return alert("Faltan datos obligatorios (Nombre y Categoría).");
 
     // Las variantes se generan automáticamente al publicar para evitar
     // obligar al usuario a pulsar primero "Generar combinaciones".
@@ -261,11 +215,9 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       if (!generated) return;
       combinationsToSave = generated;
       combinationsGeneratedAutomatically = variantCombinations.length === 0;
-      setVariantCombinations(generated);
-      setVariantFeedback({
-        type: "info",
-        message: `Validación correcta: ${generated.length} combinaciones listas. Guardando el producto...`
-      });
+      if (combinationsGeneratedAutomatically) {
+        alert(`✓ Variantes validadas: se generaron ${generated.length} combinaciones válidas. Ahora se guardará el producto.`);
+      }
     }
 
     setIsUploading(true);
@@ -296,7 +248,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       }
 
       if (uploadedUrls.length === 0) {
-        return alert("Agrega al menos una imagen en la galería o una imagen en las opciones de una variante visual.");
+        return alert("No se puede publicar: falta una imagen. Agrega al menos una imagen en la galería o activa 'Imagen por opción' y carga una imagen en una variante visual.");
       }
 
       const variantes: ProductVariantsConfig = {
@@ -316,20 +268,15 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
         : variantsEnabled && combinationsToSave.length > 0
           ? `Producto publicado correctamente. Se guardaron ${combinationsToSave.length} combinaciones válidas.`
           : "Producto publicado correctamente.";
-      setVariantFeedback({ type: "success", message });
       alert(message);
       onClose();
     } catch (e) {
       console.error("Error al guardar producto:", e);
       const detail = e instanceof Error ? e.message : String(e);
-      const message = `No se pudo guardar el producto. ${detail}`;
-      setVariantFeedback({ type: "error", message });
-      alert(message);
+      alert(`No se pudo guardar el producto. Detalle: ${detail}`);
     } finally { setIsUploading(false); }
   };
-  return (
-    <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#1A1A1A] w-full max-w-5xl my-auto rounded-[2.5rem] border border-white/10 relative shadow-2xl">
+  return (<div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto"><div className="bg-[#1A1A1A] w-full max-w-5xl my-auto rounded-[2.5rem] border border-white/10 relative shadow-2xl">
     {showInSituCat && <div className="absolute inset-0 bg-black/70 z-[60] flex items-center justify-center rounded-[2.5rem] p-6"><div className="bg-[#262626] w-full max-w-sm p-10 rounded-[2rem] space-y-6 text-center"><Layers className="mx-auto text-primary"/><h3 className="text-xl font-bold uppercase text-white">Nueva Categoría</h3><input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Ej: Llaveros" className="w-full bg-black/40 rounded-xl p-4 text-white text-center"/><div className="flex gap-4"><button onClick={() => setShowInSituCat(false)} className="flex-1 py-4 text-gray-500">Cancelar</button><button onClick={handleCreateCategoryInSitu} className="flex-1 bg-primary py-4 rounded-xl text-white">Crear</button></div></div></div>}
     {showInSituAttr && <div className="absolute inset-0 bg-black/70 z-[60] flex items-center justify-center rounded-[2.5rem] p-6"><div className="bg-[#262626] w-full max-w-sm p-10 rounded-[2rem] space-y-6 text-center"><Tag className="mx-auto text-accent"/><h3 className="text-xl font-bold uppercase text-white">Nuevo Grupo</h3><p className="text-xs text-gray-500 uppercase">Categoría: {category}</p><input value={newAttrName} onChange={e => setNewAttrName(e.target.value)} placeholder="Ej: Material" className="w-full bg-black/40 rounded-xl p-4 text-white text-center"/><div className="flex gap-4"><button onClick={() => setShowInSituAttr(false)} className="flex-1 py-4 text-gray-500">Cancelar</button><button onClick={handleCreateAttrInSitu} className="flex-1 bg-accent py-4 rounded-xl text-black font-bold">Vincular</button></div></div></div>}
     <div className="p-8 border-b border-white/5 flex justify-between items-center"><div className="flex items-center gap-4"><PlusCircle className="text-primary"/><div><h2 className="text-2xl font-black text-white uppercase">{productToEdit ? "Editar Producto" : "Nuevo Producto"}</h2><p className="text-gray-500 text-sm">Relaciones por ID de categoría y atributo.</p></div></div><button onClick={onClose} className="p-3 text-gray-400"><X size={28}/></button></div>
@@ -425,21 +372,6 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={addVariantGroup} className="px-4 py-3 rounded-xl bg-white/5 text-gray-300 text-[10px] font-black uppercase">+ Nueva característica</button>
             <button type="button" onClick={generateVariantCombinations} disabled={!variantGroups.length} className="px-4 py-3 rounded-xl bg-accent text-black text-[10px] font-black uppercase">Generar combinaciones</button>
-          </div>
-          {variantFeedback && <div className={"rounded-xl border p-4 flex items-start gap-3 " + (
-            variantFeedback.type === "success"
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : variantFeedback.type === "error"
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : "border-accent/30 bg-accent/10 text-accent"
-          )}>
-            {variantFeedback.type === "success" ? <Check size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wide">
-                {variantFeedback.type === "success" ? "Proceso correcto" : variantFeedback.type === "error" ? "Revisa las variantes" : "Procesando"}
-              </p>
-              <p className="text-xs mt-1">{variantFeedback.message}</p>
-            </div>
           </div>
           {variantCombinations.length > 0 && <div className="space-y-3">
             <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase text-gray-500">Combinaciones válidas: {variantCombinations.length}</span></div>
