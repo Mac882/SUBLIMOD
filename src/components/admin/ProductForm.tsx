@@ -262,7 +262,9 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
 
       const message = combinationsGeneratedAutomatically
         ? `Producto publicado correctamente. Se generaron automáticamente ${combinationsToSave.length} combinaciones válidas.`
-        : "Producto publicado correctamente.";
+        : variantsEnabled && combinationsToSave.length > 0
+          ? `Producto publicado correctamente. Se guardaron ${combinationsToSave.length} combinaciones válidas.`
+          : "Producto publicado correctamente.";
       alert(message);
       onClose();
     } catch (e) { console.error(e); alert("Error al guardar el producto."); } finally { setIsUploading(false); }
