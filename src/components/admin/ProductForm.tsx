@@ -55,7 +55,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setCategory(foundCategory?.nombre || productToEdit.categoria || "");
     setColors(productToEdit.colores || []);
     setVariantsEnabled(Boolean(productToEdit.variantes?.habilitado));
-    setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos.map((group: any) => ({ ...group, imagenPorOpcion: Boolean(group.imagenPorOpcion) })) : []);
+    setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos.map((group: any) => ({ ...group, imagenPorOpcion: Boolean(group.imagenPorOpcion || group.opciones?.some((option: any) => option.imagenUrl)) })) : []);
     setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
     setVariantOptionFiles({});
     setPriceMatrix(productToEdit.escalasPrecios || [{ min: 1, max: 12, price: 0 }]);
