@@ -109,17 +109,59 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
   const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
   const variantCombinations = useMemo<ProductVariantCombination[]>(() => Array.isArray(variantConfig?.combinaciones) ? variantConfig.combinaciones.filter((combo: ProductVariantCombination) => combo.activo !== false) : [], [variantConfig]);
-  const selectedVariantImage = useMemo(() => { const option = variantGroups.flatMap(group => group.opciones).find(option => option.id === selectedVariantOptions[variantGroups.find(group => group.opciones.some(item => item.id === selectedVariantOptions[group.id]))?.id || ""]); return option?.imagenUrl || null; }, [variantGroups, selectedVariantOptions]);
   const selectedCombination = useMemo(() => {
     if (!variantGroups.length || !variantCombinations.length) return null;
-    return variantCombinations.find(combo => variantGroups.every(group => selectedVariantOptions[group.id] && combo.opciones[group.id] === selectedVariantOptions[group.id])) || null;
+    return variantCombinations.find(combo => variantGroups.every(group => {
+      if (group.requerido === false && !selectedVariantOptions[group.id]) return true;
+      return Boolean(selectedVariantOptions[group.id]) && combo.opciones[group.id] === selectedVariantOptions[group.id];
+    })) || null;
   }, [variantGroups, variantCombinations, selectedVariantOptions]);
+
+  const availableVariantOptions = useMemo(() => {
+    const result: Record<string, Set<string>> = {};
+    variantGroups.forEach(group => {
+      result[group.id] = new Set(group.opciones.map(option => option.id));
+    });
+
+    variantGroups.forEach(group => {
+      if (!group.dependeDe) return;
+      const parentValue = selectedVariantOptions[group.dependeDe];
+      if (!parentValue) return;
+      const compatible = group.opciones
+        .filter(option => !option.disponiblePara?.length || option.disponiblePara.includes(parentValue))
+        .map(option => option.id);
+      result[group.id] = new Set(compatible);
+    });
+
+    return result;
+  }, [variantGroups, selectedVariantOptions]);
+
+  const selectedVariantImage = useMemo(() => {
+    for (const group of variantGroups) {
+      const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
+      if (option?.imagenUrl) return option.imagenUrl;
+    }
+    return null;
+  }, [variantGroups, selectedVariantOptions]);
   const variantPrice = selectedCombination?.precio != null ? Number(selectedCombination.precio) : unitPrice;
   const totalPrice = variantPrice * quantity;
   useEffect(() => {
     if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
     const defaults: Record<string, string> = {};
-    variantGroups.forEach(group => { if (group.requerido !== false && group.opciones.length) defaults[group.id] = group.opciones[0].id; });
+    const ordered = [...variantGroups];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      ordered.forEach(group => {
+        if (group.requerido === false || defaults[group.id]) return;
+        const parentValue = group.dependeDe ? defaults[group.dependeDe] : undefined;
+        const first = group.opciones.find(option =>
+          option.nombre.trim() &&
+          (!group.dependeDe || !parentValue || !option.disponiblePara?.length || option.disponiblePara.includes(parentValue))
+        );
+        if (first) { defaults[group.id] = first.id; changed = true; }
+      });
+    }
     setSelectedVariantOptions(defaults);
   }, [variantGroups]);
 
@@ -127,6 +169,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   const handleDirectOrder = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
+    if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
+    if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
@@ -160,7 +204,22 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
             <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
-              {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => { const selected = selectedVariantOptions[group.id] === option.id; return <button type="button" key={option.id} onClick={() => setSelectedVariantOptions(previous => ({...previous, [group.id]: option.id}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{group.tipo === "color" && <span className="h-4 w-4 rounded-full border" style={{backgroundColor: option.hex || "#ddd"}}/>}{selected && <Check size={14}/>} {option.nombre}</button>; })}</div></div>)}
+              {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
+                const selected = selectedVariantOptions[group.id] === option.id;
+                const available = availableVariantOptions[group.id]?.has(option.id) ?? true;
+                return <button type="button" key={option.id} disabled={!available} onClick={() => {
+                  setSelectedVariantOptions(previous => {
+                    const next = { ...previous, [group.id]: option.id };
+                    variantGroups.forEach(child => {
+                      if (child.dependeDe !== group.id) return;
+                      const firstCompatible = child.opciones.find(childOption => !childOption.disponiblePara?.length || childOption.disponiblePara.includes(option.id));
+                      if (firstCompatible) next[child.id] = firstCompatible.id;
+                      else delete next[child.id];
+                    });
+                    return next;
+                  });
+                }} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : available ? "border-gray-200 bg-white text-gray-600" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50"}`}>{group.tipo === "color" && <span className="h-4 w-4 rounded-full border" style={{backgroundColor: option.hex || "#ddd"}}/>}{selected && <Check size={14}/>} {option.nombre}</button>;
+              })}</div></div>)}
               {!variantGroups.length && productAttributes.map((attribute) => <div key={attribute.atributoId} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{attribute.definition?.nombreAtributo || "Atributo"}</label><div className="flex flex-wrap gap-2">{attribute.valores.map((option) => { const selected = selectedAttributes[attribute.atributoId] === option; return <button type="button" key={option} onClick={() => setSelectedAttributes((previous) => ({...previous, [attribute.atributoId]: option}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{selected && <Check size={14}/>} {option}</button>; })}</div></div>)}
               {Array.isArray(product.colores) && product.colores.length > 0 && <div className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Variante de Diseño</label><div className="flex flex-wrap gap-3">{product.colores.map((color: any) => { const selected = selectedColor?.name === color.name; return <button type="button" key={color.name} onClick={() => setSelectedColor(color)} className={`flex items-center gap-3 rounded-2xl border p-1.5 pr-4 ${selected ? "border-primary bg-primary/10" : "border-gray-200 bg-white"}`}><div className="h-8 w-8 rounded-xl border" style={{backgroundColor: color.hex}}/><span className="text-[10px] font-bold uppercase">{color.name}</span></button>; })}</div></div>}
             </div>
