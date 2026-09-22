@@ -8,7 +8,7 @@ export const normalizePriceScales = (scales: unknown): ProductPriceScale[] => {
   if (!Array.isArray(scales)) return [];
   return scales
     .map((scale: any) => ({
-      min: Math.max(1, Number(scale?.min) || 1),
+      min: scale?.min == null || scale?.min === "" ? null : Math.max(1, Number(scale.min) || 1),
       max: scale?.max == null || scale?.max === "" ? null : Math.max(1, Number(scale.max) || 1),
       price: Math.max(0, Number(scale?.price) || 0),
     }))
@@ -59,6 +59,10 @@ export const validatePriceScales = (scales: unknown): string | null => {
   for (let index = 0; index < normalized.length; index += 1) {
     const current = normalized[index];
 
+    if (current.min == null) {
+      return `La escala ${index + 1} necesita definir la cantidad "Desde".`;
+    }
+
     if (current.max != null && current.max < current.min) {
       return `La escala ${index + 1} tiene un rango inválido.`;
     }
@@ -70,6 +74,14 @@ export const validatePriceScales = (scales: unknown): string | null => {
     const next = normalized[index + 1];
     if (current.max == null && next) {
       return "Una escala abierta (sin máximo) debe ser la última.";
+    }
+
+    if (next && current.max == null) {
+      return `La escala ${index + 1} necesita definir "Hasta" porque existe una escala posterior.`;
+    }
+
+    if (next && next.min == null) {
+      return `La escala ${index + 2} necesita definir la cantidad "Desde".`;
     }
 
     if (next && current.max != null && next.min !== current.max + 1) {
