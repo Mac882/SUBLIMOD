@@ -9,6 +9,7 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCartStore } from "@/store/useCartStore";
 import { ProductVariantCombination, ProductVariantGroup } from "@/types/productVariants";
+import { getApplicablePriceScale, getUnitPriceByQuantity } from "@/lib/pricing";
 
 interface ProductDetailModalProps { product: any; onClose: () => void; }
 
@@ -100,11 +101,14 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setSelectedColor(Array.isArray(product.colores) && product.colores.length ? product.colores[0] : null);
   }, [product, productAttributes]);
 
-  const unitPrice = useMemo(() => {
-    if (!Array.isArray(product.escalasPrecios) || !product.escalasPrecios.length) return 0;
-    const escala = product.escalasPrecios.find((item: any) => quantity >= item.min && quantity <= item.max);
-    return escala ? Number(escala.price) || 0 : Number(product.escalasPrecios[product.escalasPrecios.length - 1].price) || 0;
-  }, [quantity, product.escalasPrecios]);
+  const unitPrice = useMemo(
+    () => getUnitPriceByQuantity(product.escalasPrecios, quantity),
+    [quantity, product.escalasPrecios],
+  );
+  const activePriceScale = useMemo(
+    () => getApplicablePriceScale(product.escalasPrecios, quantity),
+    [quantity, product.escalasPrecios],
+  );
 
   const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
   const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
@@ -143,7 +147,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     }
     return null;
   }, [variantGroups, selectedVariantOptions]);
-  const variantPrice = selectedCombination?.precio != null ? Number(selectedCombination.precio) : unitPrice;
+  const variantPrice = unitPrice;
   const totalPrice = variantPrice * quantity;
   useEffect(() => {
     if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
@@ -170,7 +174,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const handleDirectOrder = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
     if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
-    if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
@@ -181,7 +184,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const handleAddToQuote = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
     const variantAttributes = { ...selectedAttributes, ...Object.fromEntries(variantGroups.map(group => { const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]); return option ? [group.nombre, option.nombre] : null; }).filter(Boolean) as [string, string][]) };
-    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, precioUnitario: variantPrice, total: totalPrice });
+    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
   };
@@ -256,6 +259,15 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                   <span className="mt-1 block text-[10px] font-bold uppercase text-gray-500">C$ {variantPrice} por unidad</span>
                 </div>
               </div>
+              {activePriceScale && (
+                <div className="rounded-xl border border-primary/10 bg-primary/5 px-4 py-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-primary">Escala aplicada</p>
+                  <p className="mt-1 text-xs font-bold text-secondary">
+                    {activePriceScale.max == null ? `Desde ${activePriceScale.min} unidades` : `${activePriceScale.min}–${activePriceScale.max} unidades`}
+                    {" · "}C$ {activePriceScale.price} por unidad
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button type="button" onClick={handleDirectOrder} className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-[11px] font-black uppercase leading-tight tracking-widest text-white transition-transform hover:scale-[1.01] active:scale-[0.99]"><MessageCircle size={18} className="shrink-0"/> <span>Personalizar y pedir</span></button>
                 <button type="button" onClick={handleAddToQuote} className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-[11px] font-black uppercase leading-tight tracking-widest transition-colors ${addedToQuote ? "border-green-500 bg-green-500/10 text-green-500" : "border-gray-200 bg-white text-secondary hover:border-primary/30"}`}>{addedToQuote ? <><Check size={18} className="shrink-0"/> <span>¡Añadido!</span></> : <><ShoppingCart size={18} className="shrink-0"/> <span>Añadir a cotización</span></>}</button>
