@@ -196,14 +196,34 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   };
 
   const generateVariantCombinations = () => {
-    const next = buildVariantCombinations();
-    if (next) setVariantCombinations(next);
+    try {
+      if (!variantGroups.length) {
+        alert("No hay características de variantes. Agrega al menos una.");
+        return;
+      }
+      const next = buildVariantCombinations();
+      if (!next) return;
+      setVariantCombinations(next);
+      alert(`✓ Se generaron correctamente ${next.length} combinaciones válidas.`);
+    } catch (error) {
+      console.error("Error al generar combinaciones:", error);
+      const detail = error instanceof Error ? error.message : String(error);
+      alert(`No se pudieron generar las combinaciones. Detalle: ${detail}`);
+    }
   };
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
   const handleSubmit = async () => {
-    if (!productName.trim() || !categoryId) return alert("Faltan datos obligatorios (Nombre y Categoría).");
+    try {
+      if (!productName.trim()) {
+        alert("No se puede publicar: falta el nombre del producto.");
+        return;
+      }
+      if (!categoryId) {
+        alert("No se puede publicar: falta seleccionar la categoría.");
+        return;
+      }
 
     // Las variantes se generan automáticamente al publicar para evitar
     // obligar al usuario a pulsar primero "Generar combinaciones".
@@ -274,7 +294,13 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       console.error("Error al guardar producto:", e);
       const detail = e instanceof Error ? e.message : String(e);
       alert(`No se pudo guardar el producto. Detalle: ${detail}`);
-    } finally { setIsUploading(false); }
+    } catch (error) {
+      console.error("Error al publicar producto:", error);
+      const detail = error instanceof Error ? error.message : String(error);
+      alert(`No se pudo publicar el producto. Detalle: ${detail}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
   return (<div className="fixed inset-0 bg-black/95 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto"><div className="bg-[#1A1A1A] w-full max-w-5xl my-auto rounded-[2.5rem] border border-white/10 relative shadow-2xl">
     {showInSituCat && <div className="absolute inset-0 bg-black/70 z-[60] flex items-center justify-center rounded-[2.5rem] p-6"><div className="bg-[#262626] w-full max-w-sm p-10 rounded-[2rem] space-y-6 text-center"><Layers className="mx-auto text-primary"/><h3 className="text-xl font-bold uppercase text-white">Nueva Categoría</h3><input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Ej: Llaveros" className="w-full bg-black/40 rounded-xl p-4 text-white text-center"/><div className="flex gap-4"><button onClick={() => setShowInSituCat(false)} className="flex-1 py-4 text-gray-500">Cancelar</button><button onClick={handleCreateCategoryInSitu} className="flex-1 bg-primary py-4 rounded-xl text-white">Crear</button></div></div></div>}
