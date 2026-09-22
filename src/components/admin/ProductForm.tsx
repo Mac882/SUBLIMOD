@@ -449,7 +449,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
             <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase text-gray-500">Combinaciones válidas: {variantCombinations.length}</span></div>
             <div className="max-h-64 overflow-y-auto space-y-2 pr-1">{variantCombinations.map(combo => <div key={combo.id} className="flex flex-col md:flex-row md:items-center gap-3 bg-black/20 p-3 rounded-xl">
               <div className="flex-grow text-xs text-gray-300">{variantGroups.map(group => { const option = group.opciones.find(item => item.id === combo.opciones[group.id]); return option ? <span key={group.id} className="inline-block mr-2 mb-1 bg-white/5 px-2 py-1 rounded">{group.nombre}: {option.nombre}</span> : null; })}</div>
-              <input type="number" value={combo.precio ?? ""} onChange={e => updateVariantCombination(combo.id, { precio: e.target.value === "" ? null : Number(e.target.value) })} placeholder="Precio opcional" className="w-32 bg-black/30 p-2 rounded-lg text-accent text-xs" />
+              
               <button type="button" onClick={() => updateVariantCombination(combo.id, { activo: !combo.activo })} className={"px-3 py-2 rounded-lg text-[9px] font-black uppercase " + (combo.activo === false ? "bg-red-500/10 text-red-400" : "bg-primary/10 text-primary")}>{combo.activo === false ? "Inactiva" : "Activa"}</button>
             </div>)}</div>
           </div>}
