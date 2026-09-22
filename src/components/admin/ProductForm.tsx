@@ -307,7 +307,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
                   <div className="flex flex-wrap gap-2 items-center">
                     {group.tipo === "color" && <input type="color" value={option.hex || "#2E8982"} onChange={e => updateVariantOption(group.id, option.id, { hex: e.target.value })} className="w-9 h-9 bg-transparent" />}
                     {group.imagenPorOpcion && <><label className="cursor-pointer bg-white/5 px-3 py-2 rounded-lg text-[9px] font-black text-gray-400 uppercase">{option.imagenUrl ? "Cambiar imagen" : "Imagen"}<input type="file" accept="image/*" className="hidden" onChange={e => handleVariantOptionImage(group.id, option.id, e.target.files?.[0])} /></label>
-                    {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" /></>}
+                    {option.imagenUrl && <img src={option.imagenUrl} alt="" className="w-9 h-9 object-cover rounded-lg border border-white/10" /></>}</>}
                     <input value={option.nombre} onChange={e => updateVariantOption(group.id, option.id, { nombre: e.target.value })} className="flex-1 min-w-[140px] bg-black/30 p-2.5 rounded-lg text-white text-sm" placeholder="Nombre de opción" />
                     <button type="button" onClick={() => removeVariantOption(group.id, option.id)} className="text-red-500 p-2"><X size={15}/></button>
                   </div>
