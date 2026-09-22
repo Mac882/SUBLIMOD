@@ -4,6 +4,8 @@ export interface ProductVariantOption {
   hex?: string;
   imagenUrl?: string;
   metadata?: Record<string, string | number | boolean>;
+  /** IDs de opciones del grupo padre para las que esta opción está disponible. */
+  disponiblePara?: string[];
 }
 
 export interface ProductVariantGroup {
@@ -11,6 +13,8 @@ export interface ProductVariantGroup {
   nombre: string;
   tipo?: "select" | "color";
   requerido?: boolean;
+  /** Si se define, este grupo filtra sus opciones según la opción seleccionada del grupo padre. */
+  dependeDe?: string;
   opciones: ProductVariantOption[];
 }
 
