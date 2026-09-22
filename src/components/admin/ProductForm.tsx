@@ -241,8 +241,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     }
 
     setIsUploading(true);
-    try {
-      const uploadedUrls: string[] = [];
+    const uploadedUrls: string[] = [];
       for (const img of images) { if (img.file) { const storageRef = ref(storage, `productos/${Date.now()}_${img.file.name}`); uploadedUrls.push(await getDownloadURL((await uploadBytes(storageRef, img.file)).ref)); } else uploadedUrls.push(img.url); }
 
       const atributos = Object.entries(selectedOptions).filter(([, vals]) => vals.length).map(([atributoId, valores]) => ({ atributoId, valores }));
@@ -290,10 +289,6 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
           : "Producto publicado correctamente.";
       alert(message);
       onClose();
-    } catch (e) {
-      console.error("Error al guardar producto:", e);
-      const detail = e instanceof Error ? e.message : String(e);
-      alert(`No se pudo guardar el producto. Detalle: ${detail}`);
     } catch (error) {
       console.error("Error al publicar producto:", error);
       const detail = error instanceof Error ? error.message : String(error);
