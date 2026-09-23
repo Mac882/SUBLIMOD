@@ -286,7 +286,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {priceScales.map((scale: any, index: number) => {
-                      const isActive = activePriceScale === scale;
+                      const isActive = Boolean(activePriceScale && Number(activePriceScale.min) === Number(scale.min) && (activePriceScale.max ?? null) === (scale.max ?? null) && Number(activePriceScale.price) === Number(scale.price));
                       return (
                         <div
                           key={index}
