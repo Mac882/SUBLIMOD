@@ -44,6 +44,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [addedToQuote, setAddedToQuote] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -109,6 +110,11 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     () => getApplicablePriceScale(product.escalasPrecios, quantity),
     [quantity, product.escalasPrecios],
   );
+  const priceScales = useMemo(
+    () => Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [],
+    [product.escalasPrecios],
+  );
+  const hasQuantityScales = priceScales.length > 1;
 
   const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
   const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
@@ -259,13 +265,50 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                   <span className="mt-1 block text-[10px] font-bold uppercase text-gray-500">C$ {variantPrice} por unidad</span>
                 </div>
               </div>
-              {activePriceScale && (
-                <div className="rounded-xl border border-primary/10 bg-primary/5 px-4 py-3">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-primary">Escala aplicada</p>
-                  <p className="mt-1 text-xs font-bold text-secondary">
-                    {activePriceScale.max == null ? `Desde ${activePriceScale.min} unidades` : `${activePriceScale.min}–${activePriceScale.max} unidades`}
-                    {" · "}C$ {activePriceScale.price} por unidad
-                  </p>
+              {hasQuantityScales && (
+                <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Precios por cantidad</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsPricingInfoOpen(true)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/30 bg-white text-primary transition-colors hover:bg-primary hover:text-white"
+                          aria-label="Información sobre precios por cantidad"
+                          title="¿Cómo funcionan los precios por cantidad?"
+                        >
+                          <Info size={12} />
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[10px] text-gray-500">A mayor cantidad, puedes acceder a un precio por unidad más conveniente.</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {priceScales.map((scale: any, index: number) => {
+                      const isActive = activePriceScale === scale;
+                      return (
+                        <div
+                          key={index}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+                            isActive
+                              ? "border-primary bg-white shadow-sm"
+                              : "border-primary/10 bg-white/60"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                              {scale.max == null ? `Desde ${scale.min} unidades` : `${scale.min}–${scale.max} unidades`}
+                            </p>
+                            {isActive && (
+                              <p className="mt-0.5 text-[8px] font-bold uppercase text-primary">Precio aplicable</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-black text-secondary">C$ {Number(scale.price) || 0}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -276,6 +319,58 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             <div className="flex flex-col gap-6 border-t border-primary/10 pt-8 md:flex-row"><div className="flex items-center gap-3 text-gray-600"><Truck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Envíos Cargo Trans / Interlocal</span></div><div className="flex items-center gap-3 text-gray-600"><Info size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Jinotega, Nicaragua</span></div></div>
           </div>
         </div>
+        {isPricingInfoOpen && (
+          <div
+            className="fixed inset-0 z-[280] flex items-center justify-center bg-secondary/55 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pricing-info-title"
+            onClick={() => setIsPricingInfoOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#F8FAFA] p-6 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Info size={20} />
+                  </div>
+                  <h3 id="pricing-info-title" className="text-lg font-black text-secondary">¿Cómo funcionan los precios por cantidad?</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPricingInfoOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-secondary shadow-sm transition-colors hover:bg-gray-100"
+                  aria-label="Cerrar información"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="mt-5 space-y-3 text-sm leading-relaxed text-gray-600">
+                <p>
+                  Los precios por cantidad se calculan sobre el <strong className="text-secondary">total de unidades del mismo producto</strong>.
+                </p>
+                <p>
+                  Puedes combinar diferentes variantes disponibles, como <strong className="text-secondary">colores o tallas</strong>, y todas las unidades se acumulan para determinar el precio aplicable.
+                </p>
+                <p>
+                  Los productos diferentes se calculan de forma independiente.
+                </p>
+              </div>
+              <div className="mt-5 rounded-xl border border-primary/10 bg-primary/5 p-3 text-[10px] font-bold uppercase leading-relaxed tracking-wide text-primary">
+                Ejemplo: 3 unidades en una variante + 3 unidades en otra variante del mismo producto = 6 unidades para determinar el precio por cantidad.
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPricingInfoOpen(false)}
+                className="mt-5 w-full rounded-xl bg-primary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-primary-dark"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        )}
         {isImageZoomed && imagesList.length > 0 && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><img src={imagesList[activeImageIndex]} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
       </div>
     </div>
