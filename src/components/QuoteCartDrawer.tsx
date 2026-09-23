@@ -61,8 +61,7 @@ const QuoteCartDrawer = () => {
 
     cartItems.forEach((item, idx) => {
       const productQuantity = productQuantities[item.productId] || item.cantidad;
-      const scale = getApplicablePriceScale(item.escalasPrecios, productQuantity);
-      const summary = productSummaries.get(item.productId);
+      productQuantities[item.productId] || item.cantidad;
       const attrString = item.atributos
         ? Object.entries(item.atributos)
             .map(([k, v]) => `   • ${k}: ${v}`)
