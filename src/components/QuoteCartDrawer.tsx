@@ -32,7 +32,6 @@ const QuoteCartDrawer = () => {
     return () => window.removeEventListener("openSublimodCart", handleOpen);
   }, []);
 
-  const productQuantities = cartItems.reduce<Record<string, number>>((totals, item) => { totals[item.productId] = (totals[item.productId] || 0) + item.cantidad; return totals; }, {});
   const productGroups = useMemo(() => {
     const groups = new Map<string, typeof cartItems>();
     cartItems.forEach((item) => {
@@ -58,7 +57,7 @@ const QuoteCartDrawer = () => {
         productId: first.productId, nombre: first.nombre, imagen: first.imagen, items,
         totalQuantity, scale, unitPrice, basePrice,
         savingsPerUnit: Math.max(0, basePrice - unitPrice),
-        total: items.reduce((sum, item) => sum + item.total, 0),
+        total: unitPrice * totalQuantity,
         commonAttributes, variants,
       };
     });
