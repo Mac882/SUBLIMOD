@@ -189,7 +189,23 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   const handleAddToQuote = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
-    const variantAttributes = { ...selectedAttributes, ...Object.fromEntries(variantGroups.map(group => { const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]); return option ? [group.nombre, option.nombre] : null; }).filter(Boolean) as [string, string][]) };
+    const readableAttributes = Object.fromEntries(
+      productAttributes.map(attribute => [
+        attribute.definition?.nombreAtributo || attribute.atributoId,
+        selectedAttributes[attribute.atributoId] || "N/A",
+      ])
+    );
+    const variantAttributes = {
+      ...readableAttributes,
+      ...Object.fromEntries(
+        variantGroups
+          .map(group => {
+            const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
+            return option ? [group.nombre, option.nombre] : null;
+          })
+          .filter(Boolean) as [string, string][]
+      ),
+    };
     addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
