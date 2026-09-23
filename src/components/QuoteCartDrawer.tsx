@@ -37,22 +37,83 @@ const QuoteCartDrawer = () => {
 
   const handleSendFullQuote = () => {
     if (cartItems.length === 0) return;
+
     let itemsList = "";
+    const productSummaries = new Map<string, { nombre: string; cantidad: number; escala: any; precio: number; basePrice: number }>();
+
+    cartItems.forEach((item) => {
+      const productQuantity = productQuantities[item.productId] || item.cantidad;
+      const scale = getApplicablePriceScale(item.escalasPrecios, productQuantity);
+      const baseScale = Array.isArray(item.escalasPrecios) && item.escalasPrecios.length
+        ? item.escalasPrecios[0]
+        : null;
+
+      if (!productSummaries.has(item.productId)) {
+        productSummaries.set(item.productId, {
+          nombre: item.nombre,
+          cantidad: productQuantity,
+          escala: scale,
+          precio: item.precioUnitario,
+          basePrice: Number(baseScale?.price) || item.precioUnitario,
+        });
+      }
+    });
+
     cartItems.forEach((item, idx) => {
       const productQuantity = productQuantities[item.productId] || item.cantidad;
       const scale = getApplicablePriceScale(item.escalasPrecios, productQuantity);
+      const summary = productSummaries.get(item.productId);
       const attrString = item.atributos
-        ? Object.entries(item.atributos).map(([k, v]) => `    • ${k}: ${v}`).join("\n")
+        ? Object.entries(item.atributos)
+            .map(([k, v]) => `   • ${k}: ${v}`)
+            .join("\n")
         : "";
+      const legacyColor = item.color?.name ? `\n   • Variante: ${item.color.name}` : "";
+      const productLink = `${window.location.origin}/producto/${item.productId}`;
 
-      itemsList += `\n*${idx + 1}. ${item.nombre.toUpperCase()}* x${item.cantidad} uds
-   - Precio/unit: C$ ${item.precioUnitario}
-${attrString}
-   - Variante/Color: ${item.color?.name || "N/A"}
-   - Subtotal: C$ ${item.total}\n`;
+      itemsList += `
+*${idx + 1}. ${item.nombre.toUpperCase()}* — ${item.cantidad} uds
+${attrString}${legacyColor}
+   • Precio por unidad: C$ ${item.precioUnitario}
+   • Subtotal de esta variante: C$ ${item.total}
+   • Ver producto: ${productLink}
+`;
     });
 
-    const message = `¡Hola SubliMod! 👋 Deseo solicitar la cotización de mi carrito:\n----------------------------------${itemsList}----------------------------------\n💰 *TOTAL ESTIMADO:* C$ ${totalQuote}\n\nJinotega, Nicaragua.`;
+    const summaries = Array.from(productSummaries.values())
+      .map((summary) => {
+        const discount = Math.max(0, summary.basePrice - summary.precio);
+        const savings = discount * summary.cantidad;
+        if (!summary.escala || discount <= 0) {
+          return `• ${summary.nombre}: ${summary.cantidad} unidades — C$ ${summary.precio}/unidad`;
+        }
+        const scaleLabel = summary.escala.max == null
+          ? `desde ${summary.escala.min} unidades`
+          : `${summary.escala.min}–${summary.escala.max} unidades`;
+        return `• ${summary.nombre}: ${summary.cantidad} unidades en total, combinando sus variantes.
+  Escala aplicada: ${scaleLabel} → C$ ${summary.precio}/unidad.
+  Ahorro estimado por cantidad: C$ ${savings}.`;
+      })
+      .join("\n");
+
+    const message = `¡Hola SubliMod! 👋 Deseo solicitar la cotización de mi carrito:
+
+----------------------------------
+*DETALLE DE LOS PRODUCTOS*
+----------------------------------
+${itemsList}
+----------------------------------
+*PRECIO POR CANTIDAD*
+----------------------------------
+${summaries}
+
+----------------------------------
+💰 *TOTAL ESTIMADO:* C$ ${totalQuote}
+
+Los precios por cantidad se calculan sobre el total de unidades del mismo producto, aunque correspondan a diferentes variantes. Los productos diferentes se calculan por separado.
+
+Jinotega, Nicaragua.`;
+
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
