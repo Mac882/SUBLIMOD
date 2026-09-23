@@ -60,8 +60,6 @@ const QuoteCartDrawer = () => {
     });
 
     cartItems.forEach((item, idx) => {
-      const productQuantity = productQuantities[item.productId] || item.cantidad;
-      productQuantities[item.productId] || item.cantidad;
       const attrString = item.atributos
         ? Object.entries(item.atributos)
             .map(([k, v]) => `   • ${k}: ${v}`)
