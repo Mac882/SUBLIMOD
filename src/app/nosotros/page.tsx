@@ -7,6 +7,18 @@ import { Award, Heart, Truck, MapPin, MessageCircle, ExternalLink, ShieldCheck }
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
+const FACEBOOK_URL = "https://www.facebook.com/share/19gjHA1pBn/?mibextid=wwXIfr";
+
+const FacebookIcon = ({ size = 18 }: { size?: number }) => (
+  <span
+    aria-hidden="true"
+    className="flex items-center justify-center rounded-full bg-[#1877F2] text-white font-black leading-none shrink-0"
+    style={{ width: size, height: size, fontSize: Math.round(size * 0.72) }}
+  >
+    f
+  </span>
+);
+
 export default function NosotrosPage() {
   const [configData, setConfigData] = useState({
     whatsapp: "86153695",
@@ -101,6 +113,16 @@ export default function NosotrosPage() {
                   <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><MapPin className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Dirección Exacta</p><p className="text-white text-sm font-bold leading-relaxed uppercase">{configData.address}</p></div></div>
                   <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><MessageCircle className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Atención Directa</p><a href={`https://wa.me/505${configData.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-accent text-xl font-black hover:underline transition-all">+505 {configData.whatsapp}</a></div></div>
                   <div className="flex gap-5 items-start"><div className="bg-primary/20 p-3 rounded-xl"><Truck className="text-primary" size={20} /></div><div><p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Cobertura</p><p className="text-white text-sm font-bold uppercase">{configData.envios}</p></div></div>
+                  <div className="flex gap-5 items-start">
+                    <div className="bg-primary/20 p-3 rounded-xl"><FacebookIcon size={20} /></div>
+                    <div>
+                      <p className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1">Redes Sociales</p>
+                      <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-white text-sm font-black hover:text-[#1877F2] transition-colors">
+                        Facebook SubliMod <ExternalLink size={13} />
+                      </a>
+                      <p className="mt-1 text-[10px] text-gray-500">Visita nuestra página y conoce nuestras novedades.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <a href={configData.mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-12 flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 py-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all group relative z-10">Abrir en Google Maps <ExternalLink size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /></a>
