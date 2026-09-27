@@ -8,6 +8,8 @@ import {
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCartStore } from "@/store/useCartStore";
+import { ProductVariantCombination, ProductVariantGroup } from "@/types/productVariants";
+import { getApplicablePriceScale, getUnitPriceByQuantity } from "@/lib/pricing";
 
 interface ProductDetailModalProps { product: any; onClose: () => void; }
 
@@ -37,10 +39,12 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [attributeDefinitions, setAttributeDefinitions] = useState<any[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState<any>(null);
+  const [selectedVariantOptions, setSelectedVariantOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const [addedToQuote, setAddedToQuote] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -98,24 +102,111 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setSelectedColor(Array.isArray(product.colores) && product.colores.length ? product.colores[0] : null);
   }, [product, productAttributes]);
 
-  const unitPrice = useMemo(() => {
-    if (!Array.isArray(product.escalasPrecios) || !product.escalasPrecios.length) return 0;
-    const escala = product.escalasPrecios.find((item: any) => quantity >= item.min && quantity <= item.max);
-    return escala ? Number(escala.price) || 0 : Number(product.escalasPrecios[product.escalasPrecios.length - 1].price) || 0;
-  }, [quantity, product.escalasPrecios]);
+  const unitPrice = useMemo(
+    () => getUnitPriceByQuantity(product.escalasPrecios, quantity),
+    [quantity, product.escalasPrecios],
+  );
+  const activePriceScale = useMemo(
+    () => getApplicablePriceScale(product.escalasPrecios, quantity),
+    [quantity, product.escalasPrecios],
+  );
+  const priceScales = useMemo(
+    () => Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [],
+    [product.escalasPrecios],
+  );
+  const hasQuantityScales = priceScales.length > 1;
 
-  const totalPrice = unitPrice * quantity;
+  const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
+  const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
+  const variantCombinations = useMemo<ProductVariantCombination[]>(() => Array.isArray(variantConfig?.combinaciones) ? variantConfig.combinaciones.filter((combo: ProductVariantCombination) => combo.activo !== false) : [], [variantConfig]);
+  const selectedCombination = useMemo(() => {
+    if (!variantGroups.length || !variantCombinations.length) return null;
+    return variantCombinations.find(combo => variantGroups.every(group => {
+      if (group.requerido === false && !selectedVariantOptions[group.id]) return true;
+      return Boolean(selectedVariantOptions[group.id]) && combo.opciones[group.id] === selectedVariantOptions[group.id];
+    })) || null;
+  }, [variantGroups, variantCombinations, selectedVariantOptions]);
+
+  const availableVariantOptions = useMemo(() => {
+    const result: Record<string, Set<string>> = {};
+    variantGroups.forEach(group => {
+      result[group.id] = new Set(group.opciones.map(option => option.id));
+    });
+
+    variantGroups.forEach(group => {
+      if (!group.dependeDe) return;
+      const parentValue = selectedVariantOptions[group.dependeDe];
+      if (!parentValue) return;
+      const compatible = group.opciones
+        .filter(option => !option.disponiblePara?.length || option.disponiblePara.includes(parentValue))
+        .map(option => option.id);
+      result[group.id] = new Set(compatible);
+    });
+
+    return result;
+  }, [variantGroups, selectedVariantOptions]);
+
+  const selectedVariantImage = useMemo(() => {
+    for (const group of variantGroups) {
+      const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
+      if (option?.imagenUrl) return option.imagenUrl;
+    }
+    return null;
+  }, [variantGroups, selectedVariantOptions]);
+  const variantPrice = unitPrice;
+  const totalPrice = variantPrice * quantity;
+  useEffect(() => {
+    if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
+    const defaults: Record<string, string> = {};
+    const ordered = [...variantGroups];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      ordered.forEach(group => {
+        if (group.requerido === false || defaults[group.id]) return;
+        const parentValue = group.dependeDe ? defaults[group.dependeDe] : undefined;
+        const first = group.opciones.find(option =>
+          option.nombre.trim() &&
+          (!group.dependeDe || !parentValue || !option.disponiblePara?.length || option.disponiblePara.includes(parentValue))
+        );
+        if (first) { defaults[group.id] = first.id; changed = true; }
+      });
+    }
+    setSelectedVariantOptions(defaults);
+  }, [variantGroups]);
+
+  const getSelectedVariantLines = () => variantGroups.map(group => { const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]); return option ? `• *${group.nombre}:* ${option.nombre}` : null; }).filter(Boolean).join("\n");
 
   const handleDirectOrder = () => {
+    if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
+    if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
-    const message = `¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* ${product.nombre}\n- *Cantidad:* ${quantity} unidades\n${attrString}\n- *Variante/Color:* ${selectedColor?.name || "N/A"}\n\n- *Precio Unitario:* C$ ${unitPrice}\n- *Total Estimado:* C$ ${totalPrice}\n\n_Enlace del producto:_ ${window.location.origin}/producto/${product.id}\nQuedo a la espera de su respuesta para coordinar el diseño.`;
+    const message = "¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* " + product.nombre + "\n- *Cantidad:* " + quantity + " unidades\n" + getSelectedVariantLines() + (attrString ? "\n" + attrString : "") + (!variantGroups.length ? "\n- *Variante/Color:* " + (selectedColor?.name || "N/A") : "") + "\n\n- *Precio Unitario:* C$ " + variantPrice + "\n- *Total Estimado:* C$ " + totalPrice + "\n\n_Enlace del producto:_ " + window.location.origin + "/producto/" + product.id + "\nQuedo a la espera de su respuesta para coordinar el diseño.";
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   const handleAddToQuote = () => {
-    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: product.imagenUrl, atributos: selectedAttributes, color: selectedColor, cantidad: quantity, precioUnitario: unitPrice, total: totalPrice });
+    if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
+    const readableAttributes = Object.fromEntries(
+      productAttributes.map(attribute => [
+        attribute.definition?.nombreAtributo || attribute.atributoId,
+        selectedAttributes[attribute.atributoId] || "N/A",
+      ])
+    );
+    const variantAttributes = {
+      ...readableAttributes,
+      ...Object.fromEntries(
+        variantGroups
+          .map(group => {
+            const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
+            return option ? [group.nombre, option.nombre] : null;
+          })
+          .filter(Boolean) as [string, string][]
+      ),
+    };
+    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
   };
@@ -131,20 +222,171 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full bg-white/80 p-3 text-secondary shadow-md lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
           <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-primary/10 bg-[#EEF4F3] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
-            {imagesList.length > 0 && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={imagesList[activeImageIndex]} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
+            {imagesList.length > 0 && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={selectedVariantImage || imagesList[activeImageIndex]} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
             {imagesList.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center">{imagesList.map((image: string, index: number) => <button type="button" key={`${image}-${index}`} onClick={() => setActiveImageIndex(index)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${activeImageIndex === index ? "scale-110 border-primary" : "border-white opacity-70"}`}><img src={image} alt="" className="h-full w-full object-cover"/></button>)}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
           </div>
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
             <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
-              {productAttributes.map((attribute) => <div key={attribute.atributoId} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{attribute.definition?.nombreAtributo || "Atributo"}</label><div className="flex flex-wrap gap-2">{attribute.valores.map((option) => { const selected = selectedAttributes[attribute.atributoId] === option; return <button type="button" key={option} onClick={() => setSelectedAttributes((previous) => ({...previous, [attribute.atributoId]: option}))} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : "border-gray-200 bg-white text-gray-600"}`}>{selected && <Check size={14}/>} {option}</button>; })}</div></div>)}
+              {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
+                const selected = selectedVariantOptions[group.id] === option.id;
+                const available = availableVariantOptions[group.id]?.has(option.id) ?? true;
+                return <button type="button" key={option.id} disabled={!available} onClick={() => {
+                  setSelectedVariantOptions(previous => {
+                    const next = { ...previous, [group.id]: option.id };
+                    variantGroups.forEach(child => {
+                      if (child.dependeDe !== group.id) return;
+                      const firstCompatible = child.opciones.find(childOption => !childOption.disponiblePara?.length || childOption.disponiblePara.includes(option.id));
+                      if (firstCompatible) next[child.id] = firstCompatible.id;
+                      else delete next[child.id];
+                    });
+                    return next;
+                  });
+                }} className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition-all ${selected ? "border-primary bg-primary text-white shadow-lg" : available ? "border-gray-200 bg-white text-gray-600" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50"}`}>{group.tipo === "color" && <span className="h-4 w-4 rounded-full border" style={{backgroundColor: option.hex || "#ddd"}}/>}{selected && <Check size={14}/>} {option.nombre}</button>;
+              })}</div></div>)}
+              {productAttributes.length > 0 && <div className="space-y-4 rounded-2xl border border-primary/10 bg-white p-5">
+                <div className="flex items-center gap-2">
+                  <Info size={16} className="text-primary" />
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Características del producto</label>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {productAttributes.map((attribute) => (
+                    <div key={attribute.atributoId} className="rounded-xl bg-[#F8FAFA] px-4 py-3">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{attribute.definition?.nombreAtributo || "Atributo"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {attribute.valores.map((value) => (
+                          <span key={value} className="rounded-lg border border-primary/10 bg-white px-3 py-1.5 text-xs font-bold text-secondary">{value}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>}
               {Array.isArray(product.colores) && product.colores.length > 0 && <div className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Variante de Diseño</label><div className="flex flex-wrap gap-3">{product.colores.map((color: any) => { const selected = selectedColor?.name === color.name; return <button type="button" key={color.name} onClick={() => setSelectedColor(color)} className={`flex items-center gap-3 rounded-2xl border p-1.5 pr-4 ${selected ? "border-primary bg-primary/10" : "border-gray-200 bg-white"}`}><div className="h-8 w-8 rounded-xl border" style={{backgroundColor: color.hex}}/><span className="text-[10px] font-bold uppercase">{color.name}</span></button>; })}</div></div>}
             </div>
-            <div className="space-y-8 rounded-[2rem] border border-primary/10 bg-white p-5 sm:p-8"><div className="flex flex-col items-center justify-between gap-6 md:flex-row"><div className="w-full space-y-3 md:w-auto"><label className="block text-[10px] font-black uppercase text-gray-500">Cantidad</label><div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-[#F8FAFA] p-1"><button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))} className="p-3"><Minus size={20}/></button><span className="w-12 text-center text-xl font-black text-primary">{quantity}</span><button type="button" onClick={() => setQuantity((current) => current + 1)} className="p-3"><Plus size={20}/></button></div></div><div className="text-center md:text-right"><label className="block text-[10px] font-black uppercase text-gray-500">Total Estimado</label><div className="text-4xl font-black text-accent">C$ {totalPrice}</div><span className="text-[10px] font-bold uppercase text-gray-500">C$ {unitPrice} por unidad</span></div></div><div className="grid grid-cols-1 gap-4 md:grid-cols-2"><button type="button" onClick={handleDirectOrder} className="flex items-center justify-center gap-3 rounded-2xl bg-primary py-5 text-sm font-black uppercase tracking-widest text-white"><MessageCircle size={20}/> Personalizar y Pedir</button><button type="button" onClick={handleAddToQuote} className={`flex items-center justify-center gap-3 rounded-2xl border-2 py-5 text-sm font-black uppercase ${addedToQuote ? "border-green-500 bg-green-500/10 text-green-500" : "border-gray-200 bg-white text-secondary"}`}>{addedToQuote ? <><Check size={20}/> ¡Añadido!</> : <><ShoppingCart size={20}/> Añadir a Cotización</>}</button></div></div>
+            <div className="space-y-6 rounded-[2rem] border border-primary/10 bg-white p-5 sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500">Cantidad</label>
+                  <div className="flex h-12 w-full items-center rounded-xl border border-gray-200 bg-[#F8FAFA] p-1 sm:w-36">
+                    <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-secondary transition-colors hover:bg-white" aria-label="Disminuir cantidad"><Minus size={18}/></button>
+                    <span className="flex-1 text-center text-lg font-black text-primary">{quantity}</span>
+                    <button type="button" onClick={() => setQuantity((current) => current + 1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-secondary transition-colors hover:bg-white" aria-label="Aumentar cantidad"><Plus size={18}/></button>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500">Total estimado</label>
+                  <div className="mt-0.5 text-3xl font-black leading-none text-primary sm:text-4xl">C$ {totalPrice}</div>
+                  <span className="mt-1 block text-[10px] font-bold uppercase text-gray-500">C$ {variantPrice} por unidad</span>
+                </div>
+              </div>
+              {hasQuantityScales && (
+                <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Precios por cantidad</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsPricingInfoOpen(true)}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/30 bg-white text-primary transition-colors hover:bg-primary hover:text-white"
+                          aria-label="Información sobre precios por cantidad"
+                          title="¿Cómo funcionan los precios por cantidad?"
+                        >
+                          <Info size={12} />
+                        </button>
+                      </div>
+                      <p className="mt-1 text-[10px] text-gray-500">A mayor cantidad, puedes acceder a un precio por unidad más conveniente.</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {priceScales.map((scale: any, index: number) => {
+                      const isActive = Boolean(activePriceScale && Number(activePriceScale.min) === Number(scale.min) && (activePriceScale.max ?? null) === (scale.max ?? null) && Number(activePriceScale.price) === Number(scale.price));
+                      return (
+                        <div
+                          key={index}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+                            isActive
+                              ? "border-primary bg-white shadow-sm"
+                              : "border-primary/10 bg-white/60"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                              {scale.max == null ? `Desde ${scale.min} unidades` : `${scale.min}–${scale.max} unidades`}
+                            </p>
+                            {isActive && (
+                              <p className="mt-0.5 text-[8px] font-bold uppercase text-primary">Precio aplicable</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-black text-secondary">C$ {Number(scale.price) || 0}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button type="button" onClick={handleDirectOrder} className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-[11px] font-black uppercase leading-tight tracking-widest text-white transition-transform hover:scale-[1.01] active:scale-[0.99]"><MessageCircle size={18} className="shrink-0"/> <span>Personalizar y pedir</span></button>
+                <button type="button" onClick={handleAddToQuote} className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-[11px] font-black uppercase leading-tight tracking-widest transition-colors ${addedToQuote ? "border-green-500 bg-green-500/10 text-green-500" : "border-gray-200 bg-white text-secondary hover:border-primary/30"}`}>{addedToQuote ? <><Check size={18} className="shrink-0"/> <span>¡Añadido!</span></> : <><ShoppingCart size={18} className="shrink-0"/> <span>Añadir a cotización</span></>}</button>
+              </div>
+            </div>
             <div className="flex flex-col gap-6 border-t border-primary/10 pt-8 md:flex-row"><div className="flex items-center gap-3 text-gray-600"><Truck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Envíos Cargo Trans / Interlocal</span></div><div className="flex items-center gap-3 text-gray-600"><Info size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase">Jinotega, Nicaragua</span></div></div>
           </div>
         </div>
+        {isPricingInfoOpen && (
+          <div
+            className="fixed inset-0 z-[280] flex items-center justify-center bg-secondary/55 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pricing-info-title"
+            onClick={() => setIsPricingInfoOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#F8FAFA] p-6 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Info size={20} />
+                  </div>
+                  <h3 id="pricing-info-title" className="text-lg font-black text-secondary">¿Cómo funcionan los precios por cantidad?</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPricingInfoOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-secondary shadow-sm transition-colors hover:bg-gray-100"
+                  aria-label="Cerrar información"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="mt-5 space-y-3 text-sm leading-relaxed text-gray-600">
+                <p>
+                  Los precios por cantidad se calculan sobre el <strong className="text-secondary">total de unidades del mismo producto</strong>.
+                </p>
+                <p>
+                  Puedes combinar diferentes variantes disponibles, como <strong className="text-secondary">colores o tallas</strong>, y todas las unidades se acumulan para determinar el precio aplicable.
+                </p>
+                <p>
+                  Los productos diferentes se calculan de forma independiente.
+                </p>
+              </div>
+              <div className="mt-5 rounded-xl border border-primary/10 bg-primary/5 p-3 text-[10px] font-bold uppercase leading-relaxed tracking-wide text-primary">
+                Ejemplo: 3 unidades en una variante + 3 unidades en otra variante del mismo producto = 6 unidades para determinar el precio por cantidad.
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPricingInfoOpen(false)}
+                className="mt-5 w-full rounded-xl bg-primary px-4 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-primary-dark"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        )}
         {isImageZoomed && imagesList.length > 0 && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><img src={imagesList[activeImageIndex]} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
       </div>
     </div>

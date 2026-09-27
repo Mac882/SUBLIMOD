@@ -1,9 +1,10 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { ShoppingBag, ShoppingCart, X, Trash2, MessageCircle, Package } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useCartStore } from "@/store/useCartStore";
+import { getApplicablePriceScale } from "@/lib/pricing";
 
 const QuoteCartDrawer = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,24 +32,74 @@ const QuoteCartDrawer = () => {
     return () => window.removeEventListener("openSublimodCart", handleOpen);
   }, []);
 
+  const productGroups = useMemo(() => {
+    const groups = new Map<string, typeof cartItems>();
+    cartItems.forEach((item) => {
+      const current = groups.get(item.productId) || [];
+      current.push(item);
+      groups.set(item.productId, current);
+    });
+    return Array.from(groups.values()).map((items) => {
+      const first = items[0];
+      const totalQuantity = items.reduce((sum, item) => sum + item.cantidad, 0);
+      const scale = getApplicablePriceScale(first.escalasPrecios, totalQuantity);
+      const unitPrice = scale?.price ?? first.precioUnitario;
+      const basePrice = Number(first.escalasPrecios?.[0]?.price) || unitPrice;
+      const commonAttributes = Object.entries(first.atributos || {}).filter(([key, value]) =>
+        items.every((item) => item.atributos?.[key] === value)
+      );
+      const commonKeys = new Set(commonAttributes.map(([key]) => key));
+      const variants = items.map((item) => ({
+        item,
+        attributes: Object.entries(item.atributos || {}).filter(([key]) => !commonKeys.has(key)),
+      }));
+      return {
+        productId: first.productId, nombre: first.nombre, imagen: first.imagen, items,
+        totalQuantity, scale, unitPrice, basePrice,
+        savingsPerUnit: Math.max(0, basePrice - unitPrice),
+        total: unitPrice * totalQuantity,
+        commonAttributes, variants,
+      };
+    });
+  }, [cartItems]);
+
   const totalQuote = cartItems.reduce((acc, item) => acc + (item.total || 0), 0);
 
   const handleSendFullQuote = () => {
-    if (cartItems.length === 0) return;
-    let itemsList = "";
-    cartItems.forEach((item, idx) => {
-      const attrString = item.atributos
-        ? Object.entries(item.atributos).map(([k, v]) => `    • ${k}: ${v}`).join("\n")
+    if (productGroups.length === 0) return;
+
+    const itemsList = productGroups.map((group, index) => {
+      const common = group.commonAttributes.length
+        ? group.commonAttributes.map(([key, value]) => `   • ${key}: ${value}`).join("\n") + "\n"
         : "";
+      const variants = group.variants.map(({ item, attributes }) => {
+        const variantLabel = attributes.length ? attributes.map(([, value]) => value).join(" / ") : "Variante seleccionada";
+        return `   • ${variantLabel} ×${item.cantidad}`;
+      }).join("\n");
+      const scaleLabel = group.scale ? (group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`) : "";
+      const discountLine = group.savingsPerUnit > 0 ? `\n   • Ahorro por cantidad: C$ ${group.savingsPerUnit * group.totalQuantity}` : "";
+      const link = `${window.location.origin}/producto/${group.productId}`;
+      return `*${index + 1}. ${group.nombre.toUpperCase()}* — ${group.totalQuantity} uds
+${common}${variants}
+   • Precio aplicado: C$ ${group.unitPrice} c/u
+   • Subtotal: C$ ${group.total}${scaleLabel ? `\n   • Escala: ${scaleLabel}` : ""}${discountLine}
+   • Ver producto: ${link}`;
+    }).join("\n\n");
 
-      itemsList += `\n*${idx + 1}. ${item.nombre.toUpperCase()}* x${item.cantidad} uds
-   - Precio/unit: C$ ${item.precioUnitario}
-${attrString}
-   - Variante/Color: ${item.color?.name || "N/A"}
-   - Subtotal: C$ ${item.total}\n`;
-    });
+    const message = `¡Hola SubliMod! 👋 Deseo solicitar la cotización de mi carrito.
 
-    const message = `¡Hola SubliMod! 👋 Deseo solicitar la cotización de mi carrito:\n----------------------------------${itemsList}----------------------------------\n💰 *TOTAL ESTIMADO:* C$ ${totalQuote}\n\nJinotega, Nicaragua.`;
+----------------------------------
+*DETALLE DE LOS PRODUCTOS*
+----------------------------------
+
+${itemsList}
+
+----------------------------------
+💰 *TOTAL ESTIMADO:* C$ ${totalQuote}
+
+El precio por cantidad se calcula sobre el total de unidades de cada producto, combinando sus variantes. Los productos diferentes se calculan por separado.
+
+Jinotega, Nicaragua.`;
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
@@ -86,22 +137,42 @@ ${attrString}
                   <p className="text-sm font-black uppercase tracking-widest text-gray-500">Carrito vacío</p>
                 </div>
               ) : (
-                cartItems.map((item) => (
-                  <div key={item.id} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 flex gap-4 relative group">
-                    <img src={item.imagen} alt={item.nombre} className="w-16 h-16 object-cover rounded-xl bg-black/20" />
-                    <div className="flex-grow">
-                      <h4 className="text-[11px] font-black text-white uppercase tracking-tight line-clamp-1">{item.nombre}</h4>
-                      <div className="text-[9px] text-gray-500 mt-1">
-                        <p className="mb-1 text-primary font-bold">Cant: {item.cantidad} uds | C$ {item.precioUnitario} c/u</p>
-                        <div className="flex flex-wrap gap-1">
-                          {item.atributos && Object.entries(item.atributos).map(([k, v]: any) => (
-                            <span key={k} className="bg-white/5 px-2 py-0.5 rounded-[4px] border border-white/5 uppercase">{k}: {v}</span>
-                          ))}
-                        </div>
+                productGroups.map((group) => (
+                  <div key={group.productId} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 space-y-4">
+                    <div className="flex gap-3">
+                      <img src={group.imagen} alt={group.nombre} className="w-16 h-16 object-cover rounded-xl bg-black/20" />
+                      <div className="flex-grow min-w-0">
+                        <h4 className="text-[11px] font-black text-white uppercase tracking-tight">{group.nombre}</h4>
+                        <p className="text-[9px] text-gray-400 mt-1">{group.totalQuantity} unidades · {group.items.length} variante{group.items.length === 1 ? "" : "s"}</p>
+                        {group.commonAttributes.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {group.commonAttributes.map(([key, value]) => (
+                              <span key={key} className="bg-white/5 px-2 py-0.5 rounded-[4px] border border-white/5 text-[8px] uppercase text-gray-400">{key}: {value}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs font-black text-accent mt-2">C$ {item.total}</p>
                     </div>
-                    <button onClick={() => removeItem(item.id)} className="text-gray-600 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                    <div className="rounded-xl bg-black/10 border border-white/5 p-3 space-y-2">
+                      {group.variants.map(({ item, attributes }) => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 text-[9px]">
+                          <div className="min-w-0">
+                            <p className="text-gray-300 font-bold">{attributes.length ? attributes.map(([, value]) => value).join(" / ") : "Variante seleccionada"} ×{item.cantidad}</p>
+                            <p className="text-gray-500">C$ {group.unitPrice} c/u · C$ {item.total}</p>
+                          </div>
+                          <button onClick={() => removeItem(item.id)} className="shrink-0 text-gray-600 hover:text-red-500 transition-colors p-1" aria-label={`Eliminar variante de ${group.nombre}`}><Trash2 size={15} /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div><p className="text-[9px] font-black uppercase tracking-wider text-gray-400">Precio por cantidad</p><p className="text-xs font-black text-white">C$ {group.unitPrice} <span className="text-[9px] text-gray-500">por unidad</span></p></div>
+                        {group.scale && <span className="text-[8px] font-bold uppercase text-primary">{group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`}</span>}
+                      </div>
+                      {group.savingsPerUnit > 0 && <p className="mt-2 text-[8px] font-bold text-primary">Ahorro estimado: C$ {group.savingsPerUnit * group.totalQuantity}</p>}
+                      <p className="mt-2 text-[8px] leading-relaxed text-gray-500">Las variantes de este producto se acumulan para determinar el precio aplicable.</p>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-3"><span className="text-[9px] font-black uppercase text-gray-500">Subtotal</span><span className="text-sm font-black text-accent">C$ {group.total}</span></div>
                   </div>
                 ))
               )}
