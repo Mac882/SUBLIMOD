@@ -20,7 +20,7 @@ const WhatsAppWidget = () => {
 
   if (pathname?.startsWith("/admin")) return null;
 
-  const WHATSAPP_NUMBER = "50500000000";
+  const WHATSAPP_NUMBER = "50586153695";
   const message = encodeURIComponent("¡Hola SubliMod! 👋 Tengo una consulta.");
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
 
