@@ -105,16 +105,6 @@ Jinotega, Nicaragua.`;
 
   return (
     <>
-      <a
-        href={`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent("¡Hola SubliMod! 👋 Tengo una consulta técnica.")}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-[60] bg-[#25D366] text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform active:scale-95 flex items-center justify-center border-4 border-white/10"
-        title="Consultar por WhatsApp"
-      >
-        <MessageCircle size={32} fill="currentColor" />
-      </a>
-
       {isOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[150] flex justify-end animate-in fade-in duration-300">
           <div className="bg-[#1A1A1A] w-full max-w-md h-full border-l border-white/10 flex flex-col justify-between p-6 shadow-2xl relative animate-in slide-in-from-right duration-300">
