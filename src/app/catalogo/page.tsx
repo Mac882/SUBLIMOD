@@ -35,7 +35,14 @@ function CatalogContent() {
     const unsubCat = onSnapshot(
       query(collection(db, "categorias"), orderBy("nombre", "asc")),
       (snapshot) => {
-        setCategorias(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const categories = snapshot.docs.map(document => ({ id: document.id, ...document.data() })) as any[];
+        const fallbackOrder = new Map(categories.map((category, index) => [category.id, index]));
+        categories.sort((a, b) => {
+          const orderA = typeof a.order === "number" && Number.isFinite(a.order) ? a.order : fallbackOrder.get(a.id) ?? 0;
+          const orderB = typeof b.order === "number" && Number.isFinite(b.order) ? b.order : fallbackOrder.get(b.id) ?? 0;
+          return orderA - orderB || String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
+        });
+        setCategorias(categories);
       }
     );
 
