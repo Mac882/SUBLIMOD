@@ -34,6 +34,20 @@ const normalizeValues = (value: any): string[] => {
   });
 };
 
+const getVariantImage = (
+  combination: ProductVariantCombination,
+  groups: ProductVariantGroup[],
+) => {
+  if (combination.imagenUrl) return combination.imagenUrl;
+
+  for (const group of groups) {
+    const option = group.opciones.find((item) => item.id === combination.opciones[group.id]);
+    if (option?.imagenUrl) return option.imagenUrl;
+  }
+
+  return "";
+};
+
 const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [whatsappNumber, setWhatsappNumber] = useState("86153695");
   const [attributeDefinitions, setAttributeDefinitions] = useState<any[]>([]);
@@ -96,6 +110,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   useEffect(() => {
     setActiveImageIndex(0);
+    setIsViewingGalleryImage(false);
     setIsImageZoomed(false);
     const defaults: Record<string, string> = {};
     productAttributes.forEach((attribute) => { if (attribute.valores.length) defaults[attribute.atributoId] = attribute.valores[0]; });
@@ -148,13 +163,28 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   }, [variantGroups, selectedVariantOptions]);
 
   const selectedVariantImage = useMemo(() => {
-    if (selectedCombination?.imagenUrl) return selectedCombination.imagenUrl;
-    for (const group of variantGroups) {
-      const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
-      if (option?.imagenUrl) return option.imagenUrl;
-    }
-    return null;
-  }, [selectedCombination, variantGroups, selectedVariantOptions]);
+    if (!selectedCombination) return null;
+    return getVariantImage(selectedCombination, variantGroups) || null;
+  }, [selectedCombination, variantGroups]);
+  const mediaThumbnails = useMemo(() => {
+    const galleryItems = imagesList.map((image, index) => ({
+      id: `gallery-${index}`,
+      image,
+      type: "gallery" as const,
+      label: `Imagen ${index + 1} de la galería`,
+    }));
+    const variantItems = variantCombinations
+      .map((combination) => ({
+        id: `variant-${combination.id}`,
+        image: getVariantImage(combination, variantGroups),
+        type: "variant" as const,
+        combination,
+        label: combination.nombre || "Variante del producto",
+      }))
+      .filter((item) => Boolean(item.image));
+
+    return [...galleryItems, ...variantItems];
+  }, [imagesList, variantCombinations, variantGroups]);
   const activeGalleryImage = imagesList[activeImageIndex] || imagesList[0] || "";
   const visibleImage = isViewingGalleryImage
     ? activeGalleryImage
@@ -236,7 +266,21 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
           <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-primary/10 bg-[#EEF4F3] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
             {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
-            {imagesList.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería del producto">{imagesList.map((image: string, index: number) => { const isActive = isViewingGalleryImage && activeImageIndex === index; return <button type="button" key={`${image}-${index}`} onClick={() => { setActiveImageIndex(index); setIsViewingGalleryImage(true); }} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={`Ver imagen ${index + 1} de la galería`} aria-current={isActive ? "true" : undefined}><img src={image} alt="" className="h-full w-full object-cover"/></button>; })}</div>}
+            {mediaThumbnails.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería y variantes del producto">{mediaThumbnails.map((item) => {
+              const galleryIndex = item.type === "gallery" ? Number(item.id.replace("gallery-", "")) : -1;
+              const isActive = item.type === "gallery"
+                ? isViewingGalleryImage && activeImageIndex === galleryIndex
+                : !isViewingGalleryImage && selectedCombination?.id === item.combination?.id;
+              return <button type="button" key={item.id} onClick={() => {
+                if (item.type === "gallery") {
+                  setActiveImageIndex(galleryIndex);
+                  setIsViewingGalleryImage(true);
+                  return;
+                }
+                setIsViewingGalleryImage(false);
+                setSelectedVariantOptions({ ...item.combination!.opciones });
+              }} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
+            })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
           </div>
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
