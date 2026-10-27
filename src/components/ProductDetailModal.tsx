@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronLeft, ChevronRight, Info, Maximize2, MessageCircle, Minus, Plus,
   ShieldCheck, ShoppingCart, Truck, X,
@@ -63,6 +63,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(true);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
+  const zoomTouchStartX = useRef<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -216,6 +217,18 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     const currentIndex = activeMediaIndex >= 0 ? activeMediaIndex : 0;
     const nextIndex = (currentIndex + direction + mediaThumbnails.length) % mediaThumbnails.length;
     selectMediaThumbnail(mediaThumbnails[nextIndex]);
+  };
+
+  const handleZoomTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    zoomTouchStartX.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleZoomTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const startX = zoomTouchStartX.current;
+    const endX = event.changedTouches[0]?.clientX;
+    zoomTouchStartX.current = null;
+    if (startX == null || endX == null || Math.abs(endX - startX) < 48) return;
+    navigateZoomedMedia(endX < startX ? 1 : -1);
   };
 
   useEffect(() => {
@@ -457,7 +470,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             </div>
           </div>
         )}
-        {isImageZoomed && visibleImage && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button>{mediaThumbnails.length > 1 && <><button type="button" onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(-1); }} className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 sm:left-6" aria-label="Ver imagen anterior"><ChevronLeft size={26}/></button><button type="button" onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(1); }} className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 sm:right-6" aria-label="Ver imagen siguiente"><ChevronRight size={26}/></button></>}<img src={visibleImage} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
+        {isImageZoomed && visibleImage && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={(event) => { if (event.target === event.currentTarget) setIsImageZoomed(false); }} onTouchStart={handleZoomTouchStart} onTouchEnd={handleZoomTouchEnd}><button type="button" onClick={(event) => { event.stopPropagation(); setIsImageZoomed(false); }} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><button type="button" disabled={mediaThumbnails.length < 2} onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(-1); }} className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 sm:left-6" aria-label="Ver imagen anterior"><ChevronLeft size={26}/></button><button type="button" disabled={mediaThumbnails.length < 2} onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(1); }} className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 sm:right-6" aria-label="Ver imagen siguiente"><ChevronRight size={26}/></button><img src={visibleImage} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain"/></div>}
       </div>
     </div>
   );
