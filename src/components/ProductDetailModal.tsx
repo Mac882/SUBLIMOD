@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, Check, Info, Maximize2, MessageCircle, Minus, Plus,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Info, Maximize2, MessageCircle, Minus, Plus,
   ShieldCheck, ShoppingCart, Truck, X,
 } from "lucide-react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
@@ -14,6 +14,9 @@ import { getApplicablePriceScale, getUnitPriceByQuantity } from "@/lib/pricing";
 interface ProductDetailModalProps { product: any; onClose: () => void; }
 
 type ProductAttribute = { atributoId: string; valores: string[]; definition?: any };
+type ProductMediaThumbnail =
+  | { id: string; image: string; type: "gallery"; label: string }
+  | { id: string; image: string; type: "variant"; combination: ProductVariantCombination; label: string };
 
 const normalizeOption = (value: any): string | null => {
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -57,7 +60,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [quantity, setQuantity] = useState(1);
   const [addedToQuote, setAddedToQuote] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(false);
+  const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(true);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
@@ -110,7 +113,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   useEffect(() => {
     setActiveImageIndex(0);
-    setIsViewingGalleryImage(false);
+    setIsViewingGalleryImage(true);
     setIsImageZoomed(false);
     const defaults: Record<string, string> = {};
     productAttributes.forEach((attribute) => { if (attribute.valores.length) defaults[attribute.atributoId] = attribute.valores[0]; });
@@ -166,8 +169,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     if (!selectedCombination) return null;
     return getVariantImage(selectedCombination, variantGroups) || null;
   }, [selectedCombination, variantGroups]);
-  const mediaThumbnails = useMemo(() => {
-    const galleryItems = imagesList.map((image, index) => ({
+  const mediaThumbnails = useMemo<ProductMediaThumbnail[]>(() => {
+    const galleryItems = imagesList.map((image: string, index: number) => ({
       id: `gallery-${index}`,
       image,
       type: "gallery" as const,
@@ -189,14 +192,31 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const visibleImage = isViewingGalleryImage
     ? activeGalleryImage
     : selectedVariantImage || activeGalleryImage;
+  const activeMediaIndex = useMemo(() => {
+    if (isViewingGalleryImage) {
+      return mediaThumbnails.findIndex((item) => item.id === `gallery-${activeImageIndex}`);
+    }
+    return mediaThumbnails.findIndex((item) => item.type === "variant" && item.combination.id === selectedCombination?.id);
+  }, [activeImageIndex, isViewingGalleryImage, mediaThumbnails, selectedCombination]);
   const variantPrice = unitPrice;
   const totalPrice = variantPrice * quantity;
 
-  // Las opciones visuales siempre recuperan su propia imagen. Las miniaturas
-  // de la galería solo toman el control cuando el cliente las selecciona.
-  useEffect(() => {
+  const selectMediaThumbnail = (item: ProductMediaThumbnail) => {
+    if (item.type === "gallery") {
+      setActiveImageIndex(Number(item.id.replace("gallery-", "")));
+      setIsViewingGalleryImage(true);
+      return;
+    }
     setIsViewingGalleryImage(false);
-  }, [selectedVariantImage]);
+    setSelectedVariantOptions({ ...item.combination.opciones });
+  };
+
+  const navigateZoomedMedia = (direction: -1 | 1) => {
+    if (!mediaThumbnails.length) return;
+    const currentIndex = activeMediaIndex >= 0 ? activeMediaIndex : 0;
+    const nextIndex = (currentIndex + direction + mediaThumbnails.length) % mediaThumbnails.length;
+    selectMediaThumbnail(mediaThumbnails[nextIndex]);
+  };
 
   useEffect(() => {
     if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
@@ -271,15 +291,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               const isActive = item.type === "gallery"
                 ? isViewingGalleryImage && activeImageIndex === galleryIndex
                 : !isViewingGalleryImage && selectedCombination?.id === item.combination?.id;
-              return <button type="button" key={item.id} onClick={() => {
-                if (item.type === "gallery") {
-                  setActiveImageIndex(galleryIndex);
-                  setIsViewingGalleryImage(true);
-                  return;
-                }
-                setIsViewingGalleryImage(false);
-                setSelectedVariantOptions({ ...item.combination!.opciones });
-              }} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
+              return <button type="button" key={item.id} onClick={() => selectMediaThumbnail(item)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
             })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
           </div>
@@ -445,7 +457,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             </div>
           </div>
         )}
-        {isImageZoomed && visibleImage && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><img src={visibleImage} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
+        {isImageZoomed && visibleImage && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button>{mediaThumbnails.length > 1 && <><button type="button" onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(-1); }} className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 sm:left-6" aria-label="Ver imagen anterior"><ChevronLeft size={26}/></button><button type="button" onClick={(event) => { event.stopPropagation(); navigateZoomedMedia(1); }} className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-secondary shadow-xl transition-transform hover:scale-105 sm:right-6" aria-label="Ver imagen siguiente"><ChevronRight size={26}/></button></>}<img src={visibleImage} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
       </div>
     </div>
   );
