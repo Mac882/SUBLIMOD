@@ -43,6 +43,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [quantity, setQuantity] = useState(1);
   const [addedToQuote, setAddedToQuote] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
@@ -147,14 +148,26 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   }, [variantGroups, selectedVariantOptions]);
 
   const selectedVariantImage = useMemo(() => {
+    if (selectedCombination?.imagenUrl) return selectedCombination.imagenUrl;
     for (const group of variantGroups) {
       const option = group.opciones.find(item => item.id === selectedVariantOptions[group.id]);
       if (option?.imagenUrl) return option.imagenUrl;
     }
     return null;
-  }, [variantGroups, selectedVariantOptions]);
+  }, [selectedCombination, variantGroups, selectedVariantOptions]);
+  const activeGalleryImage = imagesList[activeImageIndex] || imagesList[0] || "";
+  const visibleImage = isViewingGalleryImage
+    ? activeGalleryImage
+    : selectedVariantImage || activeGalleryImage;
   const variantPrice = unitPrice;
   const totalPrice = variantPrice * quantity;
+
+  // Las opciones visuales siempre recuperan su propia imagen. Las miniaturas
+  // de la galería solo toman el control cuando el cliente las selecciona.
+  useEffect(() => {
+    setIsViewingGalleryImage(false);
+  }, [selectedVariantImage]);
+
   useEffect(() => {
     if (!variantGroups.length) { setSelectedVariantOptions({}); return; }
     const defaults: Record<string, string> = {};
@@ -206,7 +219,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           .filter(Boolean) as [string, string][]
       ),
     };
-    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedCombination?.imagenUrl || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
+    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedVariantImage || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
   };
@@ -222,8 +235,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
         <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full bg-white/80 p-3 text-secondary shadow-md lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
           <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-primary/10 bg-[#EEF4F3] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
-            {imagesList.length > 0 && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={selectedVariantImage || imagesList[activeImageIndex]} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
-            {imagesList.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center">{imagesList.map((image: string, index: number) => <button type="button" key={`${image}-${index}`} onClick={() => setActiveImageIndex(index)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${activeImageIndex === index ? "scale-110 border-primary" : "border-white opacity-70"}`}><img src={image} alt="" className="h-full w-full object-cover"/></button>)}</div>}
+            {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
+            {imagesList.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería del producto">{imagesList.map((image: string, index: number) => { const isActive = isViewingGalleryImage && activeImageIndex === index; return <button type="button" key={`${image}-${index}`} onClick={() => { setActiveImageIndex(index); setIsViewingGalleryImage(true); }} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={`Ver imagen ${index + 1} de la galería`} aria-current={isActive ? "true" : undefined}><img src={image} alt="" className="h-full w-full object-cover"/></button>; })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
           </div>
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
@@ -233,6 +246,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                 const selected = selectedVariantOptions[group.id] === option.id;
                 const available = availableVariantOptions[group.id]?.has(option.id) ?? true;
                 return <button type="button" key={option.id} disabled={!available} onClick={() => {
+                  setIsViewingGalleryImage(false);
                   setSelectedVariantOptions(previous => {
                     const next = { ...previous, [group.id]: option.id };
                     variantGroups.forEach(child => {
@@ -387,7 +401,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             </div>
           </div>
         )}
-        {isImageZoomed && imagesList.length > 0 && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><img src={imagesList[activeImageIndex]} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
+        {isImageZoomed && visibleImage && <div className="fixed inset-0 z-[300] flex items-center justify-center overflow-auto bg-secondary/80 p-4 backdrop-blur-lg" onClick={() => setIsImageZoomed(false)}><button type="button" onClick={() => setIsImageZoomed(false)} className="absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full bg-white text-secondary shadow-xl" aria-label="Cerrar imagen ampliada"><X size={24}/></button><img src={visibleImage} alt={product.nombre} className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain" onClick={(event) => event.stopPropagation()}/></div>}
       </div>
     </div>
   );
