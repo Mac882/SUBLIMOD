@@ -9,6 +9,17 @@ import ProductDetailModal from "@/components/ProductDetailModal";
 import QuoteCartDrawer from "@/components/QuoteCartDrawer";
 import { ArrowRight, Search, X, ChevronLeft, Package, Layers } from "lucide-react";
 
+const getCatalogStartPrice = (product: any) => {
+  const combinationPrices = product?.variantes?.preciosPorCombinacion && Array.isArray(product.variantes?.combinaciones)
+    ? product.variantes.combinaciones
+      .filter((combination: any) => combination.activo !== false && Number.isFinite(combination.precioUnitario))
+      .map((combination: any) => Number(combination.precioUnitario))
+    : [];
+
+  if (combinationPrices.length) return Math.min(...combinationPrices);
+  return Number(product?.escalasPrecios?.[0]?.price) || 0;
+};
+
 function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -238,7 +249,7 @@ function CatalogContent() {
                     <div className="flex items-center justify-between mt-5 pt-5 border-t border-gray-50">
                       <div className="flex flex-col">
                         <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">Desde</span>
-                        <span className="text-primary font-black text-xl tracking-tighter">C$ {prod.escalasPrecios?.[0]?.price || 0}</span>
+                        <span className="text-primary font-black text-xl tracking-tighter">C$ {getCatalogStartPrice(prod)}</span>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-2xl group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
                         <ArrowRight size={20} />
