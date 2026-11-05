@@ -122,20 +122,6 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setSelectedColor(Array.isArray(product.colores) && product.colores.length ? product.colores[0] : null);
   }, [product, productAttributes]);
 
-  const unitPrice = useMemo(
-    () => getUnitPriceByQuantity(product.escalasPrecios, quantity),
-    [quantity, product.escalasPrecios],
-  );
-  const activePriceScale = useMemo(
-    () => getApplicablePriceScale(product.escalasPrecios, quantity),
-    [quantity, product.escalasPrecios],
-  );
-  const priceScales = useMemo(
-    () => Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [],
-    [product.escalasPrecios],
-  );
-  const hasQuantityScales = priceScales.length > 1;
-
   const variantConfig = useMemo(() => product.variantes?.habilitado ? product.variantes : null, [product]);
   const variantGroups = useMemo<ProductVariantGroup[]>(() => Array.isArray(variantConfig?.grupos) ? variantConfig.grupos : [], [variantConfig]);
   const variantCombinations = useMemo<ProductVariantCombination[]>(() => Array.isArray(variantConfig?.combinaciones) ? variantConfig.combinaciones.filter((combo: ProductVariantCombination) => combo.activo !== false) : [], [variantConfig]);
@@ -146,6 +132,22 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
       return Boolean(selectedVariantOptions[group.id]) && combo.opciones[group.id] === selectedVariantOptions[group.id];
     })) || null;
   }, [variantGroups, variantCombinations, selectedVariantOptions]);
+  const usesCombinationPrice = Boolean(
+    variantConfig?.preciosPorCombinacion && Number.isFinite(selectedCombination?.precioUnitario),
+  );
+  const priceScales = useMemo(() => usesCombinationPrice
+    ? [{ min: 1, max: null, price: Number(selectedCombination?.precioUnitario) }]
+    : (Array.isArray(product.escalasPrecios) ? product.escalasPrecios : []),
+  [product.escalasPrecios, selectedCombination?.precioUnitario, usesCombinationPrice]);
+  const unitPrice = useMemo(
+    () => getUnitPriceByQuantity(priceScales, quantity),
+    [priceScales, quantity],
+  );
+  const activePriceScale = useMemo(
+    () => getApplicablePriceScale(priceScales, quantity),
+    [priceScales, quantity],
+  );
+  const hasQuantityScales = !usesCombinationPrice && priceScales.length > 1;
 
   const availableVariantOptions = useMemo(() => {
     const result: Record<string, Set<string>> = {};
@@ -282,7 +284,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           .filter(Boolean) as [string, string][]
       ),
     };
-    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, nombre: product.nombre, imagen: selectedVariantImage || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: Array.isArray(product.escalasPrecios) ? product.escalasPrecios : [], precioUnitario: variantPrice, total: totalPrice });
+    addItem({ id: `${product.id}-${Date.now()}`, productId: product.id, clavePrecio: usesCombinationPrice && selectedCombination ? `${product.id}-${selectedCombination.id}` : product.id, precioPorCombinacion: usesCombinationPrice, nombre: product.nombre, imagen: selectedVariantImage || product.imagenUrl, atributos: variantAttributes, color: selectedColor, cantidad: quantity, escalasPrecios: priceScales, precioUnitario: variantPrice, total: totalPrice });
     setAddedToQuote(true);
     setTimeout(() => setAddedToQuote(false), 2000);
   };
@@ -361,7 +363,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                 <div className="text-left sm:text-right">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500">Total estimado</label>
                   <div className="mt-0.5 text-3xl font-black leading-none text-primary sm:text-4xl">C$ {totalPrice}</div>
-                  <span className="mt-1 block text-[10px] font-bold uppercase text-gray-500">C$ {variantPrice} por unidad</span>
+                  <span className="mt-1 block text-[10px] font-bold uppercase text-gray-500">C$ {variantPrice} por unidad{usesCombinationPrice ? " · precio de la selección" : ""}</span>
                 </div>
               </div>
               {hasQuantityScales && (

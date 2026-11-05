@@ -5,6 +5,9 @@ import { getUnitPriceByQuantity } from '@/lib/pricing';
 export interface CartItem {
   id: string;
   productId: string;
+  /** Agrupa escalas solo entre selecciones que comparten la misma regla de precio. */
+  clavePrecio?: string;
+  precioPorCombinacion?: boolean;
   nombre: string;
   imagen: string;
   atributos: Record<string, string>;
@@ -16,18 +19,21 @@ export interface CartItem {
 }
 
 const repriceItems = (items: CartItem[]): CartItem[] => {
-  const quantitiesByProduct = items.reduce<Record<string, number>>((totals, item) => {
-    totals[item.productId] = (totals[item.productId] || 0) + Math.max(0, Number(item.cantidad) || 0);
+  const quantitiesByPriceKey = items.reduce<Record<string, number>>((totals, item) => {
+    const key = item.clavePrecio || item.productId;
+    totals[key] = (totals[key] || 0) + Math.max(0, Number(item.cantidad) || 0);
     return totals;
   }, {});
-  const scalesByProduct = items.reduce<Record<string, CartItem["escalasPrecios"]>>((result, item) => {
-    if (item.escalasPrecios?.length && !result[item.productId]) result[item.productId] = item.escalasPrecios;
+  const scalesByPriceKey = items.reduce<Record<string, CartItem["escalasPrecios"]>>((result, item) => {
+    const key = item.clavePrecio || item.productId;
+    if (item.escalasPrecios?.length && !result[key]) result[key] = item.escalasPrecios;
     return result;
   }, {});
 
   return items.map((item) => {
-    const productQuantity = quantitiesByProduct[item.productId] || item.cantidad || 1;
-    const scales = item.escalasPrecios?.length ? item.escalasPrecios : scalesByProduct[item.productId];
+    const key = item.clavePrecio || item.productId;
+    const productQuantity = quantitiesByPriceKey[key] || item.cantidad || 1;
+    const scales = item.escalasPrecios?.length ? item.escalasPrecios : scalesByPriceKey[key];
     const unitPrice = scales?.length ? getUnitPriceByQuantity(scales, productQuantity) : Number(item.precioUnitario) || 0;
     return { ...item, escalasPrecios: scales, precioUnitario: unitPrice, total: unitPrice * item.cantidad };
   });
@@ -44,7 +50,7 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'sublimod_quote_store',
-      version: 2,
+      version: 3,
       migrate: (persistedState: any) => {
         const items = Array.isArray(persistedState?.items) ? persistedState.items : [];
         return { ...persistedState, items: repriceItems(items) };

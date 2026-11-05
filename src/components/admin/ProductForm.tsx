@@ -17,6 +17,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const [images, setImages] = useState<{url: string; file?: File}[]>([]), [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
   const [colors, setColors] = useState<ColorVariant[]>([]), [priceMatrix, setPriceMatrix] = useState<PriceScale[]>([{ min: 1, max: null, price: 0 }]);
   const [variantsEnabled, setVariantsEnabled] = useState(false);
+  const [variantPricingEnabled, setVariantPricingEnabled] = useState(false);
   const [variantGroups, setVariantGroups] = useState<ProductVariantGroup[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<ProductVariantCombination[]>([]);
   const [variantOptionFiles, setVariantOptionFiles] = useState<Record<string, File>>({});
@@ -39,6 +40,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setSelectedOptions({});
     setColors([]);
     setVariantsEnabled(false);
+    setVariantPricingEnabled(false);
     setVariantGroups([]);
     setVariantCombinations([]);
     setVariantOptionFiles({});
@@ -56,6 +58,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setCategory(foundCategory?.nombre || productToEdit.categoria || "");
     setColors(productToEdit.colores || []);
     setVariantsEnabled(Boolean(productToEdit.variantes?.habilitado));
+    setVariantPricingEnabled(Boolean(productToEdit.variantes?.preciosPorCombinacion));
     setVariantGroups(Array.isArray(productToEdit.variantes?.grupos) ? productToEdit.variantes.grupos.map((group: any) => ({ ...group, imagenPorOpcion: Boolean(group.imagenPorOpcion || group.opciones?.some((option: any) => option.imagenUrl)) })) : []);
     setVariantCombinations(Array.isArray(productToEdit.variantes?.combinaciones) ? productToEdit.variantes.combinaciones : []);
     setVariantOptionFiles({});
@@ -96,7 +99,15 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
     setVariantsEnabled(true);
   };
   const updateVariantGroup = (groupId: string, patch: Partial<ProductVariantGroup>) =>
-    setVariantGroups(prev => prev.map(group => group.id === groupId ? { ...group, ...patch } : group));
+    setVariantGroups(prev => prev.map(group => {
+      if (group.id !== groupId) return group;
+      if (Object.prototype.hasOwnProperty.call(patch, "dependeDe") && !patch.dependeDe) {
+        const { dependeDe: _removedDependency, ...groupWithoutDependency } = group;
+        const { dependeDe: _emptyDependency, ...patchWithoutDependency } = patch;
+        return { ...groupWithoutDependency, ...patchWithoutDependency };
+      }
+      return { ...group, ...patch };
+    }));
   const toggleVariantOptionParent = (groupId: string, optionId: string, parentOptionId: string) => {
     setVariantGroups(prev => prev.map(group => {
       if (group.id !== groupId) return group;
@@ -214,6 +225,16 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
   const updateVariantCombination = (id: string, patch: Partial<ProductVariantCombination>) =>
     setVariantCombinations(prev => prev.map(combo => combo.id === id ? { ...combo, ...patch } : combo));
 
+  const updateVariantCombinationPrice = (id: string, rawPrice: string) =>
+    setVariantCombinations(prev => prev.map(combo => {
+      if (combo.id !== id) return combo;
+      if (rawPrice === "") {
+        const { precioUnitario: _removedPrice, ...comboWithoutPrice } = combo;
+        return comboWithoutPrice;
+      }
+      return { ...combo, precioUnitario: Math.max(0, Number(rawPrice) || 0) };
+    }));
+
   const updatePriceScale = (index: number, patch: Partial<PriceScale>) => {
     setPriceMatrix(prev => prev.map((scale, scaleIndex) =>
       scaleIndex === index ? { ...scale, ...patch } : scale
@@ -265,14 +286,22 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       }
     }
 
+    if (variantPricingEnabled && combinationsToSave.some(combo => combo.activo !== false && !Number.isFinite(combo.precioUnitario))) {
+      alert("Define un precio para cada combinación activa o desactiva los precios por combinación.");
+      return;
+    }
+
     setIsUploading(true);
     const uploadedUrls: string[] = [];
       for (const img of images) { if (img.file) { const storageRef = ref(storage, `productos/${Date.now()}_${img.file.name}`); uploadedUrls.push(await getDownloadURL((await uploadBytes(storageRef, img.file)).ref)); } else uploadedUrls.push(img.url); }
 
       const atributos = Object.entries(selectedOptions).filter(([, vals]) => vals.length).map(([atributoId, valores]) => ({ atributoId, valores }));
 
-      const preparedGroups = await Promise.all(variantGroups.map(async group => ({
-        ...group,
+      const preparedGroups = await Promise.all(variantGroups.map(async group => {
+        const { dependeDe, ...groupWithoutDependency } = group;
+        return {
+        ...groupWithoutDependency,
+        ...(dependeDe ? { dependeDe } : {}),
         nombre: group.nombre.trim(),
         opciones: await Promise.all(group.opciones.map(async option => {
           const file = variantOptionFiles[option.id];
@@ -282,7 +311,8 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
           const imagenUrl = await getDownloadURL(upload.ref);
           return { ...option, nombre: option.nombre.trim(), imagenUrl };
         })),
-      })));
+        };
+      }));
 
       if (uploadedUrls.length === 0) {
         const variantImage = preparedGroups
@@ -297,6 +327,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
 
       const variantes: ProductVariantsConfig = {
         habilitado: variantsEnabled && preparedGroups.length > 0 && combinationsToSave.length > 0,
+        ...(variantsEnabled && variantPricingEnabled ? { preciosPorCombinacion: true } : {}),
         grupos: preparedGroups,
         combinaciones: combinationsToSave,
       };
@@ -332,7 +363,7 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
       <section className="pt-10 border-t border-white/5 space-y-5">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2"><Hash className="text-accent" size={20}/> Precio del producto</h3>
-          <p className="text-[10px] text-gray-500 mt-1 uppercase">El precio depende de la cantidad total del producto. Las variantes no tienen precio propio.</p>
+          <p className="text-[10px] text-gray-500 mt-1 uppercase">{variantPricingEnabled ? "Las combinaciones configuradas abajo usarán su precio propio; las demás conservan este precio general." : "El precio depende de la cantidad total del producto. Las variantes no tienen precio propio."}</p>
         </div>
         <div className="space-y-3">
           {priceMatrix.map((scale, index) => (
@@ -438,11 +469,15 @@ const ProductForm = ({ onClose, productToEdit, globalAttributes }: ProductFormPr
             <button type="button" onClick={addVariantGroup} className="px-4 py-3 rounded-xl bg-white/5 text-gray-300 text-[10px] font-black uppercase">+ Nueva característica</button>
             <button type="button" onClick={generateVariantCombinations} disabled={!variantGroups.length} className="px-4 py-3 rounded-xl bg-accent text-black text-[10px] font-black uppercase">Generar combinaciones</button>
           </div>
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-accent/20 bg-accent/5 p-4">
+            <input type="checkbox" checked={variantPricingEnabled} onChange={e => setVariantPricingEnabled(e.target.checked)} className="mt-0.5" />
+            <span><span className="block text-xs font-black uppercase text-accent">Precio propio por combinación</span><span className="mt-1 block text-[10px] leading-relaxed text-gray-400">El cliente elige la capacidad, color o modelo; el precio se asigna automáticamente. Si está desactivado, se mantiene el precio general del producto.</span></span>
+          </label>
           {variantCombinations.length > 0 && <div className="space-y-3">
-            <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase text-gray-500">Combinaciones válidas: {variantCombinations.length}</span></div>
+            <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase text-gray-500">Combinaciones válidas: {variantCombinations.length}</span>{variantPricingEnabled && <span className="text-[9px] font-bold uppercase text-accent">Define el precio de cada combinación activa</span>}</div>
             <div className="max-h-64 overflow-y-auto space-y-2 pr-1">{variantCombinations.map(combo => <div key={combo.id} className="flex flex-col md:flex-row md:items-center gap-3 bg-black/20 p-3 rounded-xl">
               <div className="flex-grow text-xs text-gray-300">{variantGroups.map(group => { const option = group.opciones.find(item => item.id === combo.opciones[group.id]); return option ? <span key={group.id} className="inline-block mr-2 mb-1 bg-white/5 px-2 py-1 rounded">{group.nombre}: {option.nombre}</span> : null; })}</div>
-              
+              {variantPricingEnabled && <label className="flex shrink-0 items-center gap-2 rounded-lg bg-black/30 px-3 py-2 text-[10px] font-black text-accent"><span>C$</span><input type="number" min="0" step="0.01" value={combo.precioUnitario ?? ""} onChange={e => updateVariantCombinationPrice(combo.id, e.target.value)} className="w-24 bg-transparent text-right text-sm text-white outline-none" placeholder="Precio" aria-label={`Precio de ${combo.nombre || "combinación"}`} /></label>}
               <button type="button" onClick={() => updateVariantCombination(combo.id, { activo: !combo.activo })} className={"px-3 py-2 rounded-lg text-[9px] font-black uppercase " + (combo.activo === false ? "bg-red-500/10 text-red-400" : "bg-primary/10 text-primary")}>{combo.activo === false ? "Inactiva" : "Activa"}</button>
             </div>)}</div>
           </div>}

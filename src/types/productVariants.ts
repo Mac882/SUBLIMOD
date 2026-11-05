@@ -26,12 +26,16 @@ export interface ProductVariantCombination {
   nombre?: string;
   imagenUrl?: string;
   imagenes?: string[];
+  /** Precio fijo opcional para esta combinación. Solo se aplica si el producto activa preciosPorCombinacion. */
+  precioUnitario?: number;
   activo?: boolean;
   metadata?: Record<string, string | number | boolean>;
 }
 
 export interface ProductVariantsConfig {
   habilitado: boolean;
+  /** Permite que cada combinación tenga un precio fijo, sin alterar productos existentes. */
+  preciosPorCombinacion?: boolean;
   grupos: ProductVariantGroup[];
   combinaciones: ProductVariantCombination[];
 }

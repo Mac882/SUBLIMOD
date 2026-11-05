@@ -35,9 +35,10 @@ const QuoteCartDrawer = () => {
   const productGroups = useMemo(() => {
     const groups = new Map<string, typeof cartItems>();
     cartItems.forEach((item) => {
-      const current = groups.get(item.productId) || [];
+      const priceKey = item.clavePrecio || item.productId;
+      const current = groups.get(priceKey) || [];
       current.push(item);
-      groups.set(item.productId, current);
+      groups.set(priceKey, current);
     });
     return Array.from(groups.values()).map((items) => {
       const first = items[0];
@@ -54,8 +55,9 @@ const QuoteCartDrawer = () => {
         attributes: Object.entries(item.atributos || {}).filter(([key]) => !commonKeys.has(key)),
       }));
       return {
-        productId: first.productId, nombre: first.nombre, imagen: first.imagen, items,
+        priceKey: first.clavePrecio || first.productId, productId: first.productId, nombre: first.nombre, imagen: first.imagen, items,
         totalQuantity, scale, unitPrice, basePrice,
+        precioPorCombinacion: Boolean(first.precioPorCombinacion),
         savingsPerUnit: Math.max(0, basePrice - unitPrice),
         total: unitPrice * totalQuantity,
         commonAttributes, variants,
@@ -76,7 +78,7 @@ const QuoteCartDrawer = () => {
         const variantLabel = attributes.length ? attributes.map(([, value]) => value).join(" / ") : "Variante seleccionada";
         return `   • ${variantLabel} ×${item.cantidad}`;
       }).join("\n");
-      const scaleLabel = group.scale ? (group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`) : "";
+      const scaleLabel = group.scale && !group.precioPorCombinacion ? (group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`) : "";
       const discountLine = group.savingsPerUnit > 0 ? `\n   • Ahorro por cantidad: C$ ${group.savingsPerUnit * group.totalQuantity}` : "";
       const link = `${window.location.origin}/producto/${group.productId}`;
       return `*${index + 1}. ${group.nombre.toUpperCase()}* — ${group.totalQuantity} uds
@@ -97,7 +99,7 @@ ${itemsList}
 ----------------------------------
 💰 *TOTAL ESTIMADO:* C$ ${totalQuote}
 
-El precio por cantidad se calcula sobre el total de unidades de cada producto, combinando sus variantes. Los productos diferentes se calculan por separado.
+El precio por cantidad se calcula sobre el total de unidades de cada producto. Las combinaciones con precio propio se calculan por separado.
 
 Jinotega, Nicaragua.`;
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
@@ -128,7 +130,7 @@ Jinotega, Nicaragua.`;
                 </div>
               ) : (
                 productGroups.map((group) => (
-                  <div key={group.productId} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 space-y-4">
+                  <div key={group.priceKey} className="bg-white/[0.02] p-4 rounded-2xl border border-white/5 space-y-4">
                     <div className="flex gap-3">
                       <img src={group.imagen} alt={group.nombre} className="w-16 h-16 object-cover rounded-xl bg-black/20" />
                       <div className="flex-grow min-w-0">
@@ -156,11 +158,11 @@ Jinotega, Nicaragua.`;
                     </div>
                     <div className="rounded-xl border border-primary/10 bg-primary/5 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div><p className="text-[9px] font-black uppercase tracking-wider text-gray-400">Precio por cantidad</p><p className="text-xs font-black text-white">C$ {group.unitPrice} <span className="text-[9px] text-gray-500">por unidad</span></p></div>
-                        {group.scale && <span className="text-[8px] font-bold uppercase text-primary">{group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`}</span>}
+                        <div><p className="text-[9px] font-black uppercase tracking-wider text-gray-400">{group.precioPorCombinacion ? "Precio de la combinación" : "Precio por cantidad"}</p><p className="text-xs font-black text-white">C$ {group.unitPrice} <span className="text-[9px] text-gray-500">por unidad</span></p></div>
+                        {group.scale && !group.precioPorCombinacion && <span className="text-[8px] font-bold uppercase text-primary">{group.scale.max == null ? `Desde ${group.scale.min} uds` : `${group.scale.min}–${group.scale.max} uds`}</span>}
                       </div>
                       {group.savingsPerUnit > 0 && <p className="mt-2 text-[8px] font-bold text-primary">Ahorro estimado: C$ {group.savingsPerUnit * group.totalQuantity}</p>}
-                      <p className="mt-2 text-[8px] leading-relaxed text-gray-500">Las variantes de este producto se acumulan para determinar el precio aplicable.</p>
+                      <p className="mt-2 text-[8px] leading-relaxed text-gray-500">{group.precioPorCombinacion ? "Esta combinación conserva su propio precio y se calcula de forma independiente." : "Las variantes de este producto se acumulan para determinar el precio aplicable."}</p>
                     </div>
                     <div className="flex items-center justify-between border-t border-white/5 pt-3"><span className="text-[9px] font-black uppercase text-gray-500">Subtotal</span><span className="text-sm font-black text-accent">C$ {group.total}</span></div>
                   </div>
