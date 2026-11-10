@@ -93,7 +93,9 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     .trim()
     .toLowerCase();
   const isShirtProduct = normalizedProductCategory.includes("camiseta");
-  const canBrowsePersonalizedShirts = normalizedProductCategory === "camiseta" || normalizedProductCategory === "camisetas";
+  // Reuse the same category detection as the shirt customization panel so the
+  // category link also appears when the stored category includes a qualifier.
+  const canBrowsePersonalizedShirts = isShirtProduct;
 
   const productAttributes = useMemo<ProductAttribute[]>(() => {
     if (Array.isArray(product.atributos)) {
