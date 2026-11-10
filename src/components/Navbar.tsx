@@ -29,6 +29,7 @@ const Navbar = () => {
   const navLinks = [
     { name: "Inicio", href: "/" },
     { name: "Catálogo", href: "/catalogo" },
+    { name: "Diseños de camisetas", href: "/disenos-camisetas" },
     { name: "Tecnología", href: "/tecnologia", icon: true },
     { name: "Nosotros", href: "/nosotros" },
     { name: "Contacto", href: "https://wa.me/50586153695", target: "_blank" },
