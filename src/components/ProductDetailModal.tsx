@@ -65,7 +65,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(true);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
-  const [shirtLocation, setShirtLocation] = useState("Pecho");
+  const [shirtLocation, setShirtLocation] = useState("");
+  const [shirtCustomLocation, setShirtCustomLocation] = useState("");
   const zoomTouchStartX = useRef<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
@@ -125,7 +126,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setActiveImageIndex(0);
     setIsViewingGalleryImage(true);
     setIsImageZoomed(false);
-    setShirtLocation("Pecho");
+    setShirtLocation("");
+    setShirtCustomLocation("");
     const defaults: Record<string, string> = {};
     productAttributes.forEach((attribute) => { if (attribute.valores.length) defaults[attribute.atributoId] = attribute.valores[0]; });
     setSelectedAttributes(defaults);
@@ -268,10 +270,13 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const handleDirectOrder = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
     if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
+    if (isShirtProduct && !shirtLocation) return alert("Elige dónde quieres colocar el diseño o selecciona Otra zona.");
+    if (isShirtProduct && shirtLocation === "Otra zona" && !shirtCustomLocation.trim()) return alert("Escribe dónde quieres colocar el diseño.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
-    const customizationLine = isShirtProduct ? `\n- *Quiero personalizarla en:* ${shirtLocation}` : "";
+    const selectedCustomizationLocation = shirtLocation === "Otra zona" ? shirtCustomLocation.trim() : shirtLocation;
+    const customizationLine = isShirtProduct ? `\n- *Quiero personalizarla en:* ${selectedCustomizationLocation}` : "";
     const message = "¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* " + product.nombre + "\n- *Cantidad:* " + quantity + " unidades\n" + getSelectedVariantLines() + (attrString ? "\n" + attrString : "") + (!variantGroups.length ? "\n- *Variante/Color:* " + (selectedColor?.name || "N/A") : "") + customizationLine + "\n\n- *Precio Unitario:* C$ " + variantPrice + "\n- *Total Estimado:* C$ " + totalPrice + "\n\n_Enlace del producto:_ " + window.location.origin + "/producto/" + product.id + "\nQuedo a la espera de su respuesta para coordinar el diseño.";
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
@@ -302,15 +307,15 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-secondary/35 p-2 backdrop-blur-md sm:p-3 lg:p-6">
-      <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden rounded-none border border-white bg-[#F8FAFA] shadow-2xl animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(900px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-primary/10 bg-[#F8FAFA] px-4 py-3 lg:hidden">
+      <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden rounded-none border border-[#E6E7E8] bg-[#FBFAF7] shadow-2xl animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(900px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#E5E5E2] bg-[#FBFAF7] px-4 py-3 lg:hidden">
           <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-secondary"><ArrowLeft size={20}/><span className="text-xs font-black uppercase tracking-widest">Volver</span></button>
           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Detalle del producto</span>
           <button type="button" onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white" aria-label="Cerrar detalle"><X size={20}/></button>
         </div>
         <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full bg-white/80 p-3 text-secondary shadow-md lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
-          <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-primary/10 bg-[#EEF4F3] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
+          <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-[#DFE3E9] bg-[#EEF1F6] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
             {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
             {mediaThumbnails.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería y variantes del producto">{mediaThumbnails.map((item) => {
               const galleryIndex = item.type === "gallery" ? Number(item.id.replace("gallery-", "")) : -1;
@@ -320,9 +325,9 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               return <button type="button" key={item.id} onClick={() => selectMediaThumbnail(item)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
             })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
-            {isShirtProduct && <section className="w-full max-w-[400px] rounded-3xl border border-primary/15 bg-gradient-to-br from-white via-white to-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="shirt-customization-title"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Shirt size={20}/></span><div><h3 id="shirt-customization-title" className="text-sm font-black uppercase tracking-wide text-secondary">Camisetas personalizadas</h3><p className="mt-1 text-xs leading-relaxed text-gray-500">Elige dónde te gustaría colocar tu diseño. Nos cuentas los detalles por WhatsApp.</p></div></div><div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Ubicación de personalización">{shirtCustomizationLocations.map((location) => <button type="button" key={location} aria-pressed={shirtLocation === location} onClick={() => setShirtLocation(location)} className={`rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-colors ${shirtLocation === location ? "border-primary bg-primary text-white shadow-md shadow-primary/20" : "border-primary/10 bg-white text-secondary hover:border-primary/40"}`}>{location}</button>)}</div><p className="mt-3 text-[10px] font-semibold text-primary">Tu selección se incluirá en la consulta. No modifica el producto ni su precio.</p></section>}
+            {isShirtProduct && <section className="w-full max-w-[400px] rounded-3xl border border-[#DCE2E9] bg-gradient-to-br from-white via-[#FAFAFC] to-[#EAF0F5] p-4 shadow-sm sm:p-5" aria-labelledby="shirt-customization-title"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Shirt size={20}/></span><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-primary">Personalización · paso 1</p><h3 id="shirt-customization-title" className="mt-1 text-sm font-black uppercase tracking-wide text-secondary">¿Dónde quieres tu diseño?</h3><p className="mt-1 text-xs leading-relaxed text-gray-600">Elige una zona sugerida o indica cualquier otro lugar. Después, pulsa “Personalizar y pedir” para enviar la consulta por WhatsApp.</p></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Ubicación de personalización">{[...shirtCustomizationLocations, "Otra zona"].map((location) => <button type="button" key={location} aria-pressed={shirtLocation === location} onClick={() => setShirtLocation(location)} className={`rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-colors ${shirtLocation === location ? "border-primary bg-primary text-white shadow-md shadow-primary/20" : "border-[#D9E0E7] bg-white text-secondary hover:border-primary/50"}`}>{location}</button>)}</div>{shirtLocation === "Otra zona" && <label className="mt-3 block text-[10px] font-black uppercase tracking-wider text-gray-600">Escribe dónde quieres el diseño<input autoComplete="off" value={shirtCustomLocation} onChange={(event) => setShirtCustomLocation(event.target.value)} placeholder="Ej. hombro, bolsillo o toda la camiseta" className="mt-1.5 w-full rounded-xl border border-[#D9E0E7] bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-secondary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"/></label>}<p className="mt-3 text-[10px] leading-relaxed text-gray-600">La ubicación se incluirá en WhatsApp. El diseño y cualquier otro detalle se coordinan por chat; esta selección no cambia el producto ni su precio.</p></section>}
           </div>
-          <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
+          <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#FBFAF7] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
             <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
               {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
