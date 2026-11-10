@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Check, ChevronLeft, ChevronRight, Info, Maximize2, MessageCircle, Minus, Plus,
-  ShieldCheck, ShoppingCart, Truck, X,
+  ShieldCheck, Shirt, ShoppingCart, Truck, X,
 } from "lucide-react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -37,6 +37,8 @@ const normalizeValues = (value: any): string[] => {
   });
 };
 
+const shirtCustomizationLocations = ["Pecho", "Espalda", "Mangas"];
+
 const getVariantImage = (
   combination: ProductVariantCombination,
   groups: ProductVariantGroup[],
@@ -63,6 +65,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(true);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
+  const [shirtLocation, setShirtLocation] = useState("Pecho");
   const zoomTouchStartX = useRef<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
@@ -81,6 +84,12 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     if (Array.isArray(product.imagenes) && product.imagenes.length) return product.imagenes;
     return product.imagenUrl ? [product.imagenUrl] : [];
   }, [product]);
+
+  const isShirtProduct = String(product.categoria || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .includes("camiseta");
 
   const productAttributes = useMemo<ProductAttribute[]>(() => {
     if (Array.isArray(product.atributos)) {
@@ -116,6 +125,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setActiveImageIndex(0);
     setIsViewingGalleryImage(true);
     setIsImageZoomed(false);
+    setShirtLocation("Pecho");
     const defaults: Record<string, string> = {};
     productAttributes.forEach((attribute) => { if (attribute.valores.length) defaults[attribute.atributoId] = attribute.valores[0]; });
     setSelectedAttributes(defaults);
@@ -261,7 +271,8 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
-    const message = "¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* " + product.nombre + "\n- *Cantidad:* " + quantity + " unidades\n" + getSelectedVariantLines() + (attrString ? "\n" + attrString : "") + (!variantGroups.length ? "\n- *Variante/Color:* " + (selectedColor?.name || "N/A") : "") + "\n\n- *Precio Unitario:* C$ " + variantPrice + "\n- *Total Estimado:* C$ " + totalPrice + "\n\n_Enlace del producto:_ " + window.location.origin + "/producto/" + product.id + "\nQuedo a la espera de su respuesta para coordinar el diseño.";
+    const customizationLine = isShirtProduct ? `\n- *Quiero personalizarla en:* ${shirtLocation}` : "";
+    const message = "¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* " + product.nombre + "\n- *Cantidad:* " + quantity + " unidades\n" + getSelectedVariantLines() + (attrString ? "\n" + attrString : "") + (!variantGroups.length ? "\n- *Variante/Color:* " + (selectedColor?.name || "N/A") : "") + customizationLine + "\n\n- *Precio Unitario:* C$ " + variantPrice + "\n- *Total Estimado:* C$ " + totalPrice + "\n\n_Enlace del producto:_ " + window.location.origin + "/producto/" + product.id + "\nQuedo a la espera de su respuesta para coordinar el diseño.";
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
@@ -309,6 +320,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               return <button type="button" key={item.id} onClick={() => selectMediaThumbnail(item)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
             })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
+            {isShirtProduct && <section className="w-full max-w-[400px] rounded-3xl border border-primary/15 bg-gradient-to-br from-white via-white to-primary/5 p-4 shadow-sm sm:p-5" aria-labelledby="shirt-customization-title"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Shirt size={20}/></span><div><h3 id="shirt-customization-title" className="text-sm font-black uppercase tracking-wide text-secondary">Camisetas personalizadas</h3><p className="mt-1 text-xs leading-relaxed text-gray-500">Elige dónde te gustaría colocar tu diseño. Nos cuentas los detalles por WhatsApp.</p></div></div><div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Ubicación de personalización">{shirtCustomizationLocations.map((location) => <button type="button" key={location} aria-pressed={shirtLocation === location} onClick={() => setShirtLocation(location)} className={`rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-colors ${shirtLocation === location ? "border-primary bg-primary text-white shadow-md shadow-primary/20" : "border-primary/10 bg-white text-secondary hover:border-primary/40"}`}>{location}</button>)}</div><p className="mt-3 text-[10px] font-semibold text-primary">Tu selección se incluirá en la consulta. No modifica el producto ni su precio.</p></section>}
           </div>
           <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#F8FAFA] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
             <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
