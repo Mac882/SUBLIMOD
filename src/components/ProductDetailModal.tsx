@@ -65,7 +65,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [isViewingGalleryImage, setIsViewingGalleryImage] = useState(true);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
   const [isPricingInfoOpen, setIsPricingInfoOpen] = useState(false);
-  const [shirtLocation, setShirtLocation] = useState("");
+  const [shirtLocations, setShirtLocations] = useState<string[]>([]);
   const [shirtCustomLocation, setShirtCustomLocation] = useState("");
   const zoomTouchStartX = useRef<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
@@ -126,7 +126,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     setActiveImageIndex(0);
     setIsViewingGalleryImage(true);
     setIsImageZoomed(false);
-    setShirtLocation("");
+    setShirtLocations([]);
     setShirtCustomLocation("");
     const defaults: Record<string, string> = {};
     productAttributes.forEach((attribute) => { if (attribute.valores.length) defaults[attribute.atributoId] = attribute.valores[0]; });
@@ -270,13 +270,16 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const handleDirectOrder = () => {
     if (variantGroups.some(group => group.requerido !== false && !selectedVariantOptions[group.id])) return alert("Selecciona todas las características requeridas.");
     if (variantGroups.length && !selectedCombination) return alert("La combinación seleccionada no está disponible.");
-    if (isShirtProduct && !shirtLocation) return alert("Elige dónde quieres colocar el diseño o selecciona Otra zona.");
-    if (isShirtProduct && shirtLocation === "Otra zona" && !shirtCustomLocation.trim()) return alert("Escribe dónde quieres colocar el diseño.");
+    if (isShirtProduct && shirtLocations.length === 0) return alert("Elige una o más ubicaciones para tu diseño.");
+    if (isShirtProduct && shirtLocations.includes("Otra zona") && !shirtCustomLocation.trim()) return alert("Escribe dónde quieres colocar el diseño adicional.");
     const attrString = productAttributes
       .map((attribute) => `• *${attribute.definition?.nombreAtributo || "Atributo"}:* ${selectedAttributes[attribute.atributoId] || "N/A"}`)
       .join("\n");
-    const selectedCustomizationLocation = shirtLocation === "Otra zona" ? shirtCustomLocation.trim() : shirtLocation;
-    const customizationLine = isShirtProduct ? `\n- *Quiero personalizarla en:* ${selectedCustomizationLocation}` : "";
+    const selectedCustomizationLocations = shirtLocations
+      .map((location) => location === "Otra zona" ? shirtCustomLocation.trim() : location)
+      .filter(Boolean)
+      .join(", ");
+    const customizationLine = isShirtProduct ? `\n- *Quiero personalizarla en:* ${selectedCustomizationLocations}` : "";
     const message = "¡Hola SubliMod! Me interesa este producto:\n\n- *Producto:* " + product.nombre + "\n- *Cantidad:* " + quantity + " unidades\n" + getSelectedVariantLines() + (attrString ? "\n" + attrString : "") + (!variantGroups.length ? "\n- *Variante/Color:* " + (selectedColor?.name || "N/A") : "") + customizationLine + "\n\n- *Precio Unitario:* C$ " + variantPrice + "\n- *Total Estimado:* C$ " + totalPrice + "\n\n_Enlace del producto:_ " + window.location.origin + "/producto/" + product.id + "\nQuedo a la espera de su respuesta para coordinar el diseño.";
     window.open(`https://wa.me/505${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
@@ -306,29 +309,29 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-secondary/35 p-2 backdrop-blur-md sm:p-3 lg:p-6">
-      <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden rounded-none border border-[#E6E7E8] bg-[#FBFAF7] shadow-2xl animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(900px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#E5E5E2] bg-[#FBFAF7] px-4 py-3 lg:hidden">
-          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-secondary"><ArrowLeft size={20}/><span className="text-xs font-black uppercase tracking-widest">Volver</span></button>
-          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">Detalle del producto</span>
-          <button type="button" onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white" aria-label="Cerrar detalle"><X size={20}/></button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#102C2A]/80 p-0 backdrop-blur-lg sm:p-3 lg:p-6">
+      <div className="relative flex h-dvh w-full max-w-6xl flex-col overflow-hidden rounded-none border border-white/70 bg-[#FBFAF7] shadow-2xl shadow-[#102C2A]/30 animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(920px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
+        <div className="flex shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-[#174A46] to-[#246D67] px-4 py-3 text-white lg:hidden">
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-white/90 transition hover:bg-white/10"><ArrowLeft size={20}/><span className="text-xs font-black uppercase tracking-widest">Volver</span></button>
+          <div className="min-w-0 flex-1 text-center"><span className="block truncate text-[8px] font-black uppercase tracking-[0.18em] text-[#FFD77C]">{product.categoria}</span><span className="block truncate text-xs font-black uppercase text-white">{product.nombre}</span></div>
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-white" aria-label="Cerrar detalle"><X size={20}/></button>
         </div>
-        <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full bg-white/80 p-3 text-secondary shadow-md lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
-          <div className="flex min-h-0 flex-col items-center justify-start gap-4 overflow-y-auto overscroll-contain border-b border-[#DFE3E9] bg-[#EEF1F6] p-4 sm:p-6 lg:justify-center lg:border-b-0 lg:border-r lg:p-8 xl:p-12">
-            {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[400px] shrink-0 cursor-zoom-in overflow-hidden rounded-3xl border border-white bg-white/60"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-[9px] font-black uppercase text-secondary opacity-0 shadow-md transition-opacity group-hover:opacity-100"><Maximize2 size={13}/> Ampliar</span></button>}
-            {mediaThumbnails.length > 1 && <div className="flex w-full max-w-[400px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería y variantes del producto">{mediaThumbnails.map((item) => {
+        <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full border border-[#E3E4E1] bg-white p-3 text-secondary shadow-md transition hover:bg-[#FFF1C8] lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[.92fr_1.08fr] lg:overflow-hidden">
+          <div className="relative flex min-h-0 flex-col items-center justify-start gap-4 overflow-visible bg-[radial-gradient(circle_at_50%_12%,rgba(255,215,124,.2),transparent_31%),linear-gradient(155deg,#246D67_0%,#174A46_58%,#123B38_100%)] p-4 sm:p-6 lg:justify-center lg:overflow-y-auto lg:overscroll-contain lg:p-8 xl:p-10">
+            <div className="flex w-full max-w-[500px] items-center justify-between gap-3 pb-1"><span className="text-[9px] font-black uppercase tracking-[.22em] text-white/70">SubliMod · Hecho para personalizar</span><span className="rounded-full bg-[#FFD77C] px-3 py-1 text-[9px] font-black uppercase tracking-wide text-[#3D413F]">Vista del producto</span></div>
+            {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[500px] shrink-0 cursor-zoom-in overflow-hidden rounded-[2rem] border border-white/70 bg-[#FAF9F5] shadow-xl shadow-[#0E3330]/25"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4 sm:p-6"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-[#174A46] px-3 py-2 text-[9px] font-black uppercase text-white shadow-md transition group-hover:bg-primary"><Maximize2 size={13}/> Ampliar</span></button>}
+            {mediaThumbnails.length > 1 && <div className="flex w-full max-w-[500px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería y variantes del producto">{mediaThumbnails.map((item) => {
               const galleryIndex = item.type === "gallery" ? Number(item.id.replace("gallery-", "")) : -1;
               const isActive = item.type === "gallery"
                 ? isViewingGalleryImage && activeImageIndex === galleryIndex
                 : !isViewingGalleryImage && selectedCombination?.id === item.combination?.id;
-              return <button type="button" key={item.id} onClick={() => selectMediaThumbnail(item)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-primary" : "border-white opacity-70 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
+              return <button type="button" key={item.id} onClick={() => selectMediaThumbnail(item)} className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-transform ${isActive ? "scale-110 border-[#FFD77C] ring-2 ring-[#FFD77C]/30" : "border-white/40 opacity-75 hover:opacity-100"}`} aria-label={item.type === "variant" ? `Seleccionar ${item.label}` : `Ver ${item.label}`} aria-current={isActive ? "true" : undefined}><img src={item.image} alt="" className="h-full w-full object-cover"/></button>;
             })}</div>}
-            <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-primary/10 bg-white px-5 py-2.5"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase text-secondary">Calidad SubliMod</span></div>
-            {isShirtProduct && <section className="w-full max-w-[400px] rounded-3xl border border-[#DCE2E9] bg-gradient-to-br from-white via-[#FAFAFC] to-[#EAF0F5] p-4 shadow-sm sm:p-5" aria-labelledby="shirt-customization-title"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Shirt size={20}/></span><div><p className="text-[9px] font-black uppercase tracking-[.16em] text-primary">Personalización · paso 1</p><h3 id="shirt-customization-title" className="mt-1 text-sm font-black uppercase tracking-wide text-secondary">¿Dónde quieres tu diseño?</h3><p className="mt-1 text-xs leading-relaxed text-gray-600">Elige una zona sugerida o indica cualquier otro lugar. Después, pulsa “Personalizar y pedir” para enviar la consulta por WhatsApp.</p></div></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Ubicación de personalización">{[...shirtCustomizationLocations, "Otra zona"].map((location) => <button type="button" key={location} aria-pressed={shirtLocation === location} onClick={() => setShirtLocation(location)} className={`rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-colors ${shirtLocation === location ? "border-primary bg-primary text-white shadow-md shadow-primary/20" : "border-[#D9E0E7] bg-white text-secondary hover:border-primary/50"}`}>{location}</button>)}</div>{shirtLocation === "Otra zona" && <label className="mt-3 block text-[10px] font-black uppercase tracking-wider text-gray-600">Escribe dónde quieres el diseño<input autoComplete="off" value={shirtCustomLocation} onChange={(event) => setShirtCustomLocation(event.target.value)} placeholder="Ej. hombro, bolsillo o toda la camiseta" className="mt-1.5 w-full rounded-xl border border-[#D9E0E7] bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-secondary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"/></label>}<p className="mt-3 text-[10px] leading-relaxed text-gray-600">La ubicación se incluirá en WhatsApp. El diseño y cualquier otro detalle se coordinan por chat; esta selección no cambia el producto ni su precio.</p></section>}
+            <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/95 px-5 py-2.5 shadow-sm"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase tracking-wide text-secondary">Calidad SubliMod</span></div>
           </div>
-          <div className="min-h-0 space-y-8 overflow-y-auto overscroll-contain bg-[#FBFAF7] p-5 sm:p-7 lg:space-y-10 lg:p-10 xl:p-12">
-            <div><div className="mb-3 flex items-center gap-2"><span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-black uppercase text-primary">{product.categoria}</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-4 text-sm italic leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
+          <div className="min-h-0 space-y-6 overflow-y-visible overscroll-contain bg-[#FBFAF7] p-5 sm:p-7 lg:overflow-y-auto lg:space-y-7 lg:p-9 xl:p-10">
+            <div className="rounded-[1.75rem] border border-[#E8E5DC] bg-white p-5 shadow-sm sm:p-6"><div className="mb-3 flex items-center gap-2"><span className="rounded-full bg-[#FFF1C8] px-3 py-1 text-[10px] font-black uppercase tracking-wide text-[#565042]">{product.categoria}</span><span className="text-[9px] font-bold uppercase tracking-[.18em] text-primary">Producto personalizable</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-3 text-sm leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
               {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
                 const selected = selectedVariantOptions[group.id] === option.id;
@@ -367,7 +370,68 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
               </div>}
               {Array.isArray(product.colores) && product.colores.length > 0 && <div className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Variante de Diseño</label><div className="flex flex-wrap gap-3">{product.colores.map((color: any) => { const selected = selectedColor?.name === color.name; return <button type="button" key={color.name} onClick={() => setSelectedColor(color)} className={`flex items-center gap-3 rounded-2xl border p-1.5 pr-4 ${selected ? "border-primary bg-primary/10" : "border-gray-200 bg-white"}`}><div className="h-8 w-8 rounded-xl border" style={{backgroundColor: color.hex}}/><span className="text-[10px] font-bold uppercase">{color.name}</span></button>; })}</div></div>}
             </div>
-            <div className="space-y-6 rounded-[2rem] border border-primary/10 bg-white p-5 sm:p-6">
+            {isShirtProduct && (
+              <section
+                className="relative overflow-hidden rounded-[1.75rem] border border-[#D1E1DC] bg-[linear-gradient(135deg,#E7F2EF_0%,#F8F8F1_57%,#FFF0C6_100%)] p-5 shadow-sm sm:p-6"
+                aria-labelledby="shirt-customization-title"
+              >
+                <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/35 blur-2xl" />
+                <div className="relative">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#246D67] text-white shadow-md shadow-[#174A46]/15"><Shirt size={21} /></span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#246D67] px-2.5 py-1 text-[9px] font-black uppercase tracking-[.14em] text-white">Paso 1</span>
+                        <span className="text-[9px] font-bold uppercase tracking-[.14em] text-[#64736E]">Personaliza tu camiseta</span>
+                      </div>
+                      <h3 id="shirt-customization-title" className="mt-2 text-lg font-black leading-tight text-[#254C48]">¿Dónde quieres colocar tu diseño?</h3>
+                      <p className="mt-1.5 text-xs leading-relaxed text-[#586C67]">Puedes marcar varias zonas. Si buscas otro lugar, elige “Otra zona” y descríbelo.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Elige una o más ubicaciones para el diseño">
+                    {[...shirtCustomizationLocations, "Otra zona"].map((location) => {
+                      const selected = shirtLocations.includes(location);
+                      return (
+                        <button
+                          type="button"
+                          key={location}
+                          aria-pressed={selected}
+                          onClick={() => setShirtLocations((current) => selected ? current.filter((item) => item !== location) : [...current, location])}
+                          className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-all ${selected ? "border-[#246D67] bg-[#246D67] text-white shadow-md shadow-[#174A46]/20" : "border-white bg-white/85 text-[#405A55] hover:border-[#8BB7AE] hover:bg-white"}`}
+                        >
+                          {selected && <Check size={13} />}
+                          {location}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <p className="mt-3 text-[10px] font-bold text-[#48615C]" aria-live="polite">
+                    {shirtLocations.length > 0 ? `${shirtLocations.length} ${shirtLocations.length === 1 ? "ubicación seleccionada" : "ubicaciones seleccionadas"}` : "Aún no has elegido. Puedes seleccionar una o varias zonas."}
+                  </p>
+
+                  {shirtLocations.includes("Otra zona") && (
+                    <label className="mt-4 block text-[10px] font-black uppercase tracking-wider text-[#48615C]">
+                      ¿Qué otra zona?
+                      <input
+                        autoComplete="off"
+                        value={shirtCustomLocation}
+                        onChange={(event) => setShirtCustomLocation(event.target.value)}
+                        placeholder="Ej. hombro, bolsillo o toda la camiseta"
+                        className="mt-1.5 w-full rounded-xl border border-[#D0DED9] bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-secondary outline-none transition placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                      />
+                    </label>
+                  )}
+
+                  <div className="mt-4 flex items-start gap-2 rounded-xl border border-white/75 bg-white/65 px-3 py-2.5">
+                    <Info size={15} className="mt-0.5 shrink-0 text-primary" />
+                    <p className="text-[10px] leading-relaxed text-[#53655F]">Al pulsar “Personalizar y pedir”, todas las zonas seleccionadas se enviarán por WhatsApp.</p>
+                  </div>
+                </div>
+              </section>
+            )}
+            <div className="sticky bottom-0 z-20 -mx-5 space-y-6 rounded-t-[1.75rem] border-t border-[#E5E2D8] bg-[#FBFAF7]/95 p-4 shadow-[0_-12px_30px_rgba(19,59,56,.10)] backdrop-blur sm:mx-0 sm:rounded-[2rem] sm:border sm:bg-white sm:p-5 sm:shadow-sm lg:static lg:p-6">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500">Cantidad</label>
