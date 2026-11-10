@@ -309,18 +309,18 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#102C2A]/80 p-0 backdrop-blur-lg sm:p-3 lg:p-6">
-      <div className="relative flex h-dvh w-full max-w-6xl flex-col overflow-hidden rounded-none border border-white/70 bg-[#FBFAF7] shadow-2xl shadow-[#102C2A]/30 animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(920px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
-        <div className="flex shrink-0 items-center justify-between gap-3 bg-gradient-to-r from-[#174A46] to-[#246D67] px-4 py-3 text-white lg:hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#263532]/75 p-0 backdrop-blur-lg sm:p-3 lg:p-6">
+      <div className="relative flex h-dvh w-full min-w-0 max-w-6xl flex-col overflow-hidden rounded-none border border-white/70 bg-[#FBFAF7] shadow-2xl shadow-[#263532]/25 animate-in zoom-in duration-300 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-[2rem] lg:h-[min(920px,calc(100dvh-3rem))] lg:max-h-[calc(100dvh-3rem)] lg:rounded-[2.5rem]">
+        <div className="flex shrink-0 items-center justify-between gap-2 bg-gradient-to-r from-[#426963] to-[#557A74] px-3 py-3 text-white sm:gap-3 sm:px-4 lg:hidden">
           <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-white/90 transition hover:bg-white/10"><ArrowLeft size={20}/><span className="text-xs font-black uppercase tracking-widest">Volver</span></button>
           <div className="min-w-0 flex-1 text-center"><span className="block truncate text-[8px] font-black uppercase tracking-[0.18em] text-[#FFD77C]">{product.categoria}</span><span className="block truncate text-xs font-black uppercase text-white">{product.nombre}</span></div>
           <button type="button" onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-white/10 text-white" aria-label="Cerrar detalle"><X size={20}/></button>
         </div>
         <button type="button" onClick={onClose} className="absolute right-5 top-5 z-50 hidden rounded-full border border-[#E3E4E1] bg-white p-3 text-secondary shadow-md transition hover:bg-[#FFF1C8] lg:block" aria-label="Cerrar detalle"><X size={22}/></button>
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[.92fr_1.08fr] lg:overflow-hidden">
-          <div className="relative flex min-h-0 flex-col items-center justify-start gap-4 overflow-visible bg-[radial-gradient(circle_at_50%_12%,rgba(255,215,124,.2),transparent_31%),linear-gradient(155deg,#246D67_0%,#174A46_58%,#123B38_100%)] p-4 sm:p-6 lg:justify-center lg:overflow-y-auto lg:overscroll-contain lg:p-8 xl:p-10">
+        <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 content-start items-start overflow-y-auto lg:grid-cols-[.92fr_1.08fr] lg:items-stretch lg:overflow-hidden">
+          <div className="relative flex h-fit min-w-0 shrink-0 flex-col items-center justify-start gap-4 overflow-visible bg-[radial-gradient(circle_at_50%_12%,rgba(255,215,124,.14),transparent_31%),linear-gradient(155deg,#668780_0%,#55756F_58%,#47655F_100%)] p-3 sm:p-6 lg:h-auto lg:min-h-0 lg:shrink lg:justify-center lg:overflow-y-auto lg:overscroll-contain lg:p-8 xl:p-10">
             <div className="flex w-full max-w-[500px] items-center justify-between gap-3 pb-1"><span className="text-[9px] font-black uppercase tracking-[.22em] text-white/70">SubliMod · Hecho para personalizar</span><span className="rounded-full bg-[#FFD77C] px-3 py-1 text-[9px] font-black uppercase tracking-wide text-[#3D413F]">Vista del producto</span></div>
-            {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-square w-full max-w-[500px] shrink-0 cursor-zoom-in overflow-hidden rounded-[2rem] border border-white/70 bg-[#FAF9F5] shadow-xl shadow-[#0E3330]/25"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-4 sm:p-6"/><span className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-[#174A46] px-3 py-2 text-[9px] font-black uppercase text-white shadow-md transition group-hover:bg-primary"><Maximize2 size={13}/> Ampliar</span></button>}
+            {visibleImage && <button type="button" onClick={() => setIsImageZoomed(true)} className="group relative aspect-[4/3] w-full max-w-[500px] shrink-0 cursor-zoom-in overflow-hidden rounded-[1.5rem] border border-white/70 bg-[#FAF9F5] shadow-xl shadow-[#344E49]/20 sm:aspect-square sm:rounded-[2rem]"><img src={visibleImage} alt={product.nombre} className="h-full w-full object-contain p-3 sm:p-6"/><span className="absolute bottom-3 right-3 flex items-center gap-2 rounded-xl bg-[#426963] px-3 py-2 text-[9px] font-black uppercase text-white shadow-md transition group-hover:bg-primary sm:bottom-4 sm:right-4"><Maximize2 size={13}/> Ampliar</span></button>}
             {mediaThumbnails.length > 1 && <div className="flex w-full max-w-[500px] shrink-0 gap-3 overflow-x-auto justify-start px-1 pb-2 lg:justify-center" aria-label="Galería y variantes del producto">{mediaThumbnails.map((item) => {
               const galleryIndex = item.type === "gallery" ? Number(item.id.replace("gallery-", "")) : -1;
               const isActive = item.type === "gallery"
@@ -330,7 +330,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
             })}</div>}
             <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/95 px-5 py-2.5 shadow-sm"><ShieldCheck size={18} className="text-primary"/><span className="text-[10px] font-bold uppercase tracking-wide text-secondary">Calidad SubliMod</span></div>
           </div>
-          <div className="min-h-0 space-y-6 overflow-y-visible overscroll-contain bg-[#FBFAF7] p-5 sm:p-7 lg:overflow-y-auto lg:space-y-7 lg:p-9 xl:p-10">
+          <div className="h-fit min-w-0 space-y-6 overflow-visible overscroll-contain bg-[#FBFAF7] p-4 sm:p-7 lg:h-auto lg:min-h-0 lg:overflow-y-auto lg:space-y-7 lg:p-9 xl:p-10">
             <div className="rounded-[1.75rem] border border-[#E8E5DC] bg-white p-5 shadow-sm sm:p-6"><div className="mb-3 flex items-center gap-2"><span className="rounded-full bg-[#FFF1C8] px-3 py-1 text-[10px] font-black uppercase tracking-wide text-[#565042]">{product.categoria}</span><span className="text-[9px] font-bold uppercase tracking-[.18em] text-primary">Producto personalizable</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-3 text-sm leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
             <div className="space-y-8">
               {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
@@ -398,7 +398,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                           key={location}
                           aria-pressed={selected}
                           onClick={() => setShirtLocations((current) => selected ? current.filter((item) => item !== location) : [...current, location])}
-                          className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-all ${selected ? "border-[#246D67] bg-[#246D67] text-white shadow-md shadow-[#174A46]/20" : "border-white bg-white/85 text-[#405A55] hover:border-[#8BB7AE] hover:bg-white"}`}
+                          className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-black uppercase tracking-wide transition-all ${selected ? "border-[#4F7972] bg-[#4F7972] text-white shadow-md shadow-[#344E49]/15" : "border-white bg-white/85 text-[#405A55] hover:border-[#8BB7AE] hover:bg-white"}`}
                         >
                           {selected && <Check size={13} />}
                           {location}
@@ -431,7 +431,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
                 </div>
               </section>
             )}
-            <div className="sticky bottom-0 z-20 -mx-5 space-y-6 rounded-t-[1.75rem] border-t border-[#E5E2D8] bg-[#FBFAF7]/95 p-4 shadow-[0_-12px_30px_rgba(19,59,56,.10)] backdrop-blur sm:mx-0 sm:rounded-[2rem] sm:border sm:bg-white sm:p-5 sm:shadow-sm lg:static lg:p-6">
+            <div className="-mx-4 space-y-6 border-t border-[#E5E2D8] bg-[#FBFAF7] p-4 sm:mx-0 sm:rounded-[2rem] sm:border sm:bg-white sm:p-5 sm:shadow-sm lg:p-6">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500">Cantidad</label>
