@@ -39,7 +39,9 @@ function CatalogContent() {
     const unsubProd = onSnapshot(
       query(collection(db, "productos"), orderBy("createdAt", "desc")),
       (snapshot) => {
-        setProductos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setProductos(snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((product: any) => product.activo !== false));
         setLoading(false);
       },
       () => setLoading(false)

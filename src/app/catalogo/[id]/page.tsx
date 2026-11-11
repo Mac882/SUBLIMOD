@@ -26,7 +26,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       try {
         const docRef = doc(db, "productos", productId);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
+        if (docSnap.exists() && docSnap.data().activo !== false) {
           const data = { id: docSnap.id, ...docSnap.data() };
           setProduct(data);
 

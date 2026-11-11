@@ -52,7 +52,7 @@ export default function ProductDetailPage({ params }: PageProps) {
         const docRef = doc(db, "productos", id);
         const docSnap = await getDoc(docRef);
         
-        if (docSnap.exists()) {
+        if (docSnap.exists() && docSnap.data().activo !== false) {
           const data = docSnap.data();
           setProduct(data);
 
