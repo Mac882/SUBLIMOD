@@ -24,11 +24,13 @@ function CatalogContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialFilter = searchParams.get("filtro") || "";
+  const initialCategoryId = searchParams.get("categoriaId") || "";
   const isCategoriesView = searchParams.get("vista") === "categorias";
 
   const [productos, setProductos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState(isCategoriesView ? "" : initialFilter);
+  const [activeCategoryId, setActiveCategoryId] = useState(initialCategoryId);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,9 +75,16 @@ function CatalogContent() {
 
   useEffect(() => {
     setActiveFilter(isCategoriesView ? "" : initialFilter);
+    setActiveCategoryId(isCategoriesView ? "" : initialCategoryId);
     setSearchQuery("");
     setSelectedProduct(null);
-  }, [initialFilter, isCategoriesView]);
+  }, [initialFilter, initialCategoryId, isCategoriesView]);
+
+  useEffect(() => {
+    if (!activeCategoryId) return;
+    const selectedCategory = categorias.find((category) => category.id === activeCategoryId);
+    if (selectedCategory) setActiveFilter(selectedCategory.nombre);
+  }, [categorias, activeCategoryId]);
 
   const matchesCategory = (prodCat: string, filterCat: string) => {
     if (!filterCat || filterCat === "Todos") return true;
@@ -87,30 +96,34 @@ function CatalogContent() {
     return cleanProd === cleanFilter || prodCat.trim().toLowerCase() === filterCat.trim().toLowerCase();
   };
 
-  const categoryProductCount = (categoryName: string) =>
-    productos.filter(product => matchesCategory(product.categoria, categoryName)).length;
+  const categoryProductCount = (categoryName: string, categoryId: string) =>
+    productos.filter(product => product.categoriaId === categoryId || (!product.categoriaId && matchesCategory(product.categoria, categoryName))).length;
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
 
     return productos.filter(product => {
-      const categoryMatch = matchesCategory(product.categoria, activeFilter || "Todos");
+      const categoryMatch = activeCategoryId
+        ? product.categoriaId === activeCategoryId
+        : matchesCategory(product.categoria, activeFilter || "Todos");
       const searchMatch = !normalizedSearch || product.nombre?.toLowerCase().includes(normalizedSearch);
       return categoryMatch && searchMatch;
     });
-  }, [productos, activeFilter, searchQuery]);
+  }, [productos, activeFilter, activeCategoryId, searchQuery]);
 
-  const showProducts = Boolean(activeFilter);
+  const showProducts = Boolean(activeFilter || activeCategoryId);
 
-  const openCategory = (categoryName: string) => {
+  const openCategory = (categoryName: string, categoryId: string) => {
     setActiveFilter(categoryName);
+    setActiveCategoryId(categoryId);
     setSearchQuery("");
-    router.replace(`/catalogo?filtro=${encodeURIComponent(categoryName)}`, { scroll: false });
+    router.replace(`/catalogo?categoriaId=${encodeURIComponent(categoryId)}`, { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const showAllProducts = () => {
     setActiveFilter("Todos");
+    setActiveCategoryId("");
     setSearchQuery("");
     router.replace("/catalogo?filtro=Todos", { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -118,6 +131,7 @@ function CatalogContent() {
 
   const backToCategories = () => {
     setActiveFilter("");
+    setActiveCategoryId("");
     setSearchQuery("");
     router.replace("/catalogo?vista=categorias", { scroll: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -291,12 +305,12 @@ function CatalogContent() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
               {categorias.map((cat) => {
-                const count = categoryProductCount(cat.nombre);
+                const count = categoryProductCount(cat.nombre, cat.id);
                 return (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => openCategory(cat.nombre)}
+                    onClick={() => openCategory(cat.nombre, cat.id)}
                     className="group text-left bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <div className="relative h-48 md:h-56 bg-gray-50 overflow-hidden">

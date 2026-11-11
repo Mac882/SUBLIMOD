@@ -57,6 +57,7 @@ const getVariantImage = (
 const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
   const [whatsappNumber, setWhatsappNumber] = useState("86153695");
   const [attributeDefinitions, setAttributeDefinitions] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState<any>(null);
   const [selectedVariantOptions, setSelectedVariantOptions] = useState<Record<string, string>>({});
@@ -79,7 +80,10 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     const unsubAttrs = onSnapshot(collection(db, "atributos_globales"), (snap) => {
       setAttributeDefinitions(snap.docs.map((item) => ({ id: item.id, ...item.data() })));
     });
-    return () => { unsubConfig(); unsubAttrs(); };
+    const unsubCategories = onSnapshot(collection(db, "categorias"), (snap) => {
+      setCategories(snap.docs.map((item) => ({ id: item.id, ...item.data() })));
+    });
+    return () => { unsubConfig(); unsubAttrs(); unsubCategories(); };
   }, []);
 
   const imagesList = useMemo(() => {
@@ -93,9 +97,17 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
     .trim()
     .toLowerCase();
   const isShirtProduct = normalizedProductCategory.includes("camiseta");
-  // Reuse the same category detection as the shirt customization panel so the
-  // category link also appears when the stored category includes a qualifier.
-  const canBrowsePersonalizedShirts = isShirtProduct;
+  const normalizeCategoryName = (value: unknown) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  const shirtCategoryId = categories.find((category) => normalizeCategoryName(category.nombre) === "camiseta")?.id;
+  const personalizedShirtsCategory = categories.find((category) => normalizeCategoryName(category.nombre) === "camisetas personalizadas");
+  const personalizedShirtsCategoryId = personalizedShirtsCategory?.id || "";
+  const canBrowsePersonalizedShirts = Boolean(
+    product.categoriaId && shirtCategoryId && product.categoriaId === shirtCategoryId && personalizedShirtsCategoryId,
+  );
 
   const productAttributes = useMemo<ProductAttribute[]>(() => {
     if (Array.isArray(product.atributos)) {
@@ -337,7 +349,7 @@ const ProductDetailModal = ({ product, onClose }: ProductDetailModalProps) => {
           </div>
           <div className="h-fit min-w-0 space-y-6 overflow-visible overscroll-contain bg-[#FBFAF7] p-4 sm:p-7 lg:h-auto lg:min-h-0 lg:overflow-y-auto lg:space-y-7 lg:p-9 xl:p-10">
             <div className="rounded-[1.75rem] border border-[#E8E5DC] bg-white p-5 shadow-sm sm:p-6"><div className="mb-3 flex items-center gap-2"><span className="rounded-full bg-[#FFF1C8] px-3 py-1 text-[10px] font-black uppercase tracking-wide text-[#565042]">{product.categoria}</span><span className="text-[9px] font-bold uppercase tracking-[.18em] text-primary">Producto personalizable</span></div><h2 className="text-3xl font-black uppercase tracking-tighter text-secondary lg:text-4xl">{product.nombre}</h2>{product.descripcion && <p className="mt-3 text-sm leading-relaxed text-gray-600">{product.descripcion}</p>}</div>
-            {canBrowsePersonalizedShirts && <div className="flex flex-col gap-3 rounded-2xl border border-[#D7E4DF] bg-[#F0F5F2] p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-xs font-black text-[#365D56]">¿Buscas camisetas con diseños?</p><p className="mt-1 text-[11px] leading-relaxed text-[#64736E]">Explora la categoría de camisetas personalizadas.</p></div><Link href="/catalogo?filtro=Camisetas%20personalizadas" onClick={onClose} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#4F7972] px-4 py-3 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-[#426963]">Ver camisetas personalizadas <ArrowRight size={15}/></Link></div>}
+            {canBrowsePersonalizedShirts && <div className="flex flex-col gap-3 rounded-2xl border border-[#D7E4DF] bg-[#F0F5F2] p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-xs font-black text-[#365D56]">¿Buscas camisetas con diseños?</p><p className="mt-1 text-[11px] leading-relaxed text-[#64736E]">Explora la categoría de camisetas personalizadas.</p></div><Link href={`/catalogo?categoriaId=${encodeURIComponent(personalizedShirtsCategoryId)}`} onClick={onClose} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#4F7972] px-4 py-3 text-[10px] font-black uppercase tracking-wide text-white transition hover:bg-[#426963]">Ver camisetas personalizadas <ArrowRight size={15}/></Link></div>}
             <div className="space-y-8">
               {variantGroups.map((group) => <div key={group.id} className="space-y-4"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">{group.nombre}</label><div className="flex flex-wrap gap-2">{group.opciones.map((option) => {
                 const selected = selectedVariantOptions[group.id] === option.id;
