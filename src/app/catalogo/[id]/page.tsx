@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import { db } from "@/lib/firebase";
+import { canOpenProductPublicly } from "@/lib/productVisibility";
 import { doc, getDoc } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -26,8 +27,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       try {
         const docRef = doc(db, "productos", productId);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists() && docSnap.data().activo !== false) {
+        if (docSnap.exists()) {
           const data = { id: docSnap.id, ...docSnap.data() };
+          if (!(await canOpenProductPublicly(data))) return;
           setProduct(data);
 
           // Inicializar atributos por defecto

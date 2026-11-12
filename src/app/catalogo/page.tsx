@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductDetailModal from "@/components/ProductDetailModal";
 import QuoteCartDrawer from "@/components/QuoteCartDrawer";
+import { isProductPubliclyVisible } from "@/lib/productVisibility";
 import { ArrowRight, Search, X, ChevronLeft, Package, Layers } from "lucide-react";
 
 const getCatalogStartPrice = (product: any) => {
@@ -32,6 +33,7 @@ function CatalogContent() {
   const [activeFilter, setActiveFilter] = useState(isCategoriesView ? "" : initialFilter);
   const [activeCategoryId, setActiveCategoryId] = useState(initialCategoryId);
   const [loading, setLoading] = useState(true);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -39,9 +41,7 @@ function CatalogContent() {
     const unsubProd = onSnapshot(
       query(collection(db, "productos"), orderBy("createdAt", "desc")),
       (snapshot) => {
-        setProductos(snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((product: any) => product.activo !== false));
+        setProductos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setLoading(false);
       },
       () => setLoading(false)
@@ -66,7 +66,9 @@ function CatalogContent() {
           return orderA - orderB || String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
         });
         setCategorias(categories);
-      }
+        setCategoriesLoaded(true);
+      },
+      () => setCategoriesLoaded(true),
     );
 
     return () => {
@@ -99,19 +101,24 @@ function CatalogContent() {
   };
 
   const categoryProductCount = (categoryName: string, categoryId: string) =>
-    productos.filter(product => product.categoriaId === categoryId || (!product.categoriaId && matchesCategory(product.categoria, categoryName))).length;
+    publiclyVisibleProducts.filter(product => product.categoriaId === categoryId || (!product.categoriaId && matchesCategory(product.categoria, categoryName))).length;
+
+  const publiclyVisibleProducts = useMemo(
+    () => productos.filter((product) => isProductPubliclyVisible(product, categorias)),
+    [productos, categorias],
+  );
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
 
-    return productos.filter(product => {
+    return publiclyVisibleProducts.filter(product => {
       const categoryMatch = activeCategoryId
         ? product.categoriaId === activeCategoryId
         : matchesCategory(product.categoria, activeFilter || "Todos");
       const searchMatch = !normalizedSearch || product.nombre?.toLowerCase().includes(normalizedSearch);
       return categoryMatch && searchMatch;
     });
-  }, [productos, activeFilter, activeCategoryId, searchQuery]);
+  }, [publiclyVisibleProducts, activeFilter, activeCategoryId, searchQuery]);
 
   const showProducts = Boolean(activeFilter || activeCategoryId);
 
@@ -218,7 +225,7 @@ function CatalogContent() {
             </div>
           )}
 
-          {loading ? (
+          {loading || !categoriesLoaded ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
               <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Cargando catálogo...</p>
@@ -294,7 +301,7 @@ function CatalogContent() {
             </button>
           </div>
 
-          {loading ? (
+          {loading || !categoriesLoaded ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
               <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Cargando categorías...</p>
@@ -306,7 +313,7 @@ function CatalogContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-              {categorias.map((cat) => {
+              {categorias.filter((category) => category.activo !== false).map((cat) => {
                 const count = categoryProductCount(cat.nombre, cat.id);
                 return (
                   <button

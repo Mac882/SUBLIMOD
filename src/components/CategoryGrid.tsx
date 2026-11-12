@@ -21,7 +21,7 @@ const CategoryGrid = () => {
         const orderB = typeof b.order === "number" && Number.isFinite(b.order) ? b.order : fallbackOrder.get(b.id) ?? 0;
         return orderA - orderB || String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
       });
-      setCategorias(categories);
+      setCategorias(categories.filter((category) => category.activo !== false));
       setLoading(false);
     }, (error) => {
       console.error("No se pudieron cargar las categorías:", error);
@@ -46,7 +46,7 @@ const CategoryGrid = () => {
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
             {categorias.map((cat) => (
-              <Link key={cat.id} href={`/catalogo?filtro=${encodeURIComponent(cat.nombre)}`} className="group flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-white/90 bg-white shadow-sm transition-all duration-500 hover:-translate-y-1 hover:border-primary/20 hover:shadow-xl hover:shadow-[#17263F]/10">
+              <Link key={cat.id} href={`/catalogo?categoriaId=${encodeURIComponent(cat.id)}`} className="group flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-white/90 bg-white shadow-sm transition-all duration-500 hover:-translate-y-1 hover:border-primary/20 hover:shadow-xl hover:shadow-[#17263F]/10">
                 <div className="relative aspect-[16/9] overflow-hidden bg-[#EAF6F4] sm:aspect-[5/3]">
                   {cat.imagenUrl ? <img src={cat.imagenUrl} alt={cat.nombre} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" /> : <div className="flex h-full flex-col items-center justify-center gap-2 text-primary/30"><Layers size={38}/><span className="text-[8px] font-black uppercase tracking-[0.25em]">SubliMod</span></div>}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#17263F]/15 via-transparent to-white/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
